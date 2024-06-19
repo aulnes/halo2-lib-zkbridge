@@ -24,3 +24,6 @@ Cargo.lock
 **/params/
 
 **/.DS_Store
+
+**/results/*
+**/results/
