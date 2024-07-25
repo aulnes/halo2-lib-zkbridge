@@ -56,7 +56,7 @@ fn merkle_tree_test<F: BigPrimeField>(
     _params: MerkleTreeCircuitParams,
     root: F,
     merkle_paths: Vec<&MerklePath>,
-    actual_result: bool,
+    // actual_result: bool,
 ) {
     let mut poseidon_chip = PoseidonHasher::<F, 3, 2>::new(OptimizedPoseidonSpec::new::<8, 57, 0>());
     let gate_chip = GateChip::<F>::default();
@@ -77,7 +77,7 @@ fn merkle_tree_test<F: BigPrimeField>(
 
     
     let result = merkle_tree_chip.merkle_tree_verify_batch(ctx, root, &merkle_infos);
-    assert_eq!(*result.value(), F::from(actual_result));
+    assert_eq!(*result.value(), F::from(1));
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn test_merkle_tree() {
     let selected_leaves: Vec<&MerklePath> = json_data.leaves.choose_multiple(&mut rng, num_agg).collect();
 
     base_test().k(params.degree).run(|ctx, range| {
-        merkle_tree_test(ctx, range, params, root, selected_leaves, true);
+        merkle_tree_test(ctx, range, params, root, selected_leaves);
     });
 
 
@@ -150,10 +150,10 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
         let selected_leaves: Vec<&MerklePath> = json_data.leaves.choose_multiple(&mut rng, num_agg).collect();
 
         let stats = base_test().k(k).lookup_bits(bench_params.lookup_bits).bench_builder(
-            (root, selected_leaves.clone(), true),
-            (root, selected_leaves, true),
-            |ctx, range, (root, selected_leaves, actual_result)| {
-                merkle_tree_test(ctx.main(),range, bench_params,root, selected_leaves, actual_result);
+            (root, selected_leaves.clone()),
+            (root, selected_leaves),
+            |ctx, range, (root, selected_leaves)| {
+                merkle_tree_test(ctx.main(),range, bench_params,root, selected_leaves);
             },
         );
 

@@ -80,9 +80,9 @@ fn test_bls_signature() {
 
     let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
     // let msg_hash = G2Affine::random(OsRng);
-    println!("hash(m):{:?}",msg_hash);
+    // println!("hash(m):{:?}",msg_hash);
     let g1 = G1Affine::generator();
-    println!("g1:{:?}",g1);
+    // println!("g1:{:?}",g1);
     let mut signatures: Vec<G2Affine> = Vec::new();
     let mut pubkeys: Vec<G1Affine> = Vec::new();
     for _ in 0..params.num_aggregation {
