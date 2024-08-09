@@ -22,7 +22,7 @@ use crate::bn254::merkle_tree::MerkleTreeChip;
 use crate::halo2curves::bn256::G1Affine;
 use super::MerkleInfo;
 use halo2_base::halo2_proofs::halo2curves::bn256::G2Affine;
-
+use crate::halo2curves::bn256::Fr;
 // pub struct MerkleTreeChip<'chip, F: BigPrimeField, const T: usize, const RATE: usize> {
 //     pub fp_chip: &'chip FpChip<'chip, F>,
 //     pub poseidon_chip: &'chip PoseidonHasher<F, T, RATE>,
@@ -49,11 +49,24 @@ impl<'chip, F: BigPrimeField, const T: usize, const RATE: usize> CombineBlsMtChi
             g1: G1Affine,
             signatures: &[G2Affine],
             pubkeys: &[G1Affine],
-            msghash: G2Affine,
+            message: F,
         ) -> AssignedValue<F> {
             // let x = F::from(0);
             assert!(merkle_infos.len() == pubkeys.len(), "merkle_info and pubkeys must be the same length");
 
+            // let msg_to_f = F::from_bytes_le(&message.as_bytes());
+            // let assigned_msg = ctx.load_witness(msg_to_f);
+            // let zero = ctx.load_witness(F::ZERO);
+            // let msghash = self.merkle_chip.poseidon_chip.hash_fix_len_array(ctx, &self.merkle_chip.gate_chip, &[assigned_msg,zero]);
+            // let msghash_byte:[u8;32] = msghash.value().to_bytes_le().to_vec().try_into().expect("Invalid Fr bytes");
+            // let msghash = G2Affine::from(G2Affine::generator() * Fr::from_bytes(&msghash_byte).unwrap());
+            // let msghash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
+
+            let assigned_msg = ctx.load_witness(message);
+            let zero = ctx.load_witness(F::ZERO);
+            let msghash = self.merkle_chip.poseidon_chip.hash_fix_len_array(ctx, &self.merkle_chip.gate_chip, &[assigned_msg,zero]);
+            let msghash_byte:[u8;32] = msghash.value().to_bytes_le().to_vec().try_into().expect("Invalid Fr bytes");
+            let msghash = G2Affine::from(G2Affine::generator() * Fr::from_bytes(&msghash_byte).unwrap());
             // Verify BLS signature
             let result_bls = self.bls_chip.bls_signature_verify(ctx, g1, signatures, pubkeys, msghash);
             // Verify Merkle tree

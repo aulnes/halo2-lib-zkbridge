@@ -3,11 +3,11 @@ use std::{
     io::{BufRead, BufReader},
 };
 // use env_logger::init;
-use halo2_base::{gates::GateChip, halo2_proofs::arithmetic::{CurveAffine, Field}, poseidon::hasher::{spec::OptimizedPoseidonSpec, PoseidonHasher}};
+use halo2_base::{gates::GateChip, halo2_proofs::arithmetic::CurveAffine, poseidon::hasher::{spec::OptimizedPoseidonSpec, PoseidonHasher}};
 use halo2_base::Context;
 use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
-use rand_core::OsRng;
+// use rand_core::OsRng;
 // use rand::rngs::OsRng;
 use serde::{Serialize, Deserialize};
 use super::*;
@@ -34,6 +34,8 @@ pub struct MerklePath {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MerkleData {
+    message: String,
+    hash_msg: String,
     root: String,
     leaves: Vec<MerklePath>,
 }
@@ -75,7 +77,7 @@ fn combine_bls_mt_test<F: BigPrimeField>(
     g1: G1Affine,
     signatures: &[G2Affine],
     pubkeys: &[G1Affine],
-    msghash: G2Affine,
+    message: F,
 ) {
     let fp_chip = FpChip::<F>::new(range, params.limb_bits, params.num_limbs);
     let pairing_chip = PairingChip::new(&fp_chip);
@@ -86,7 +88,7 @@ fn combine_bls_mt_test<F: BigPrimeField>(
     let merkle_tree_chip = MerkleTreeChip::new(&poseidon_chip, gate_chip);
     let combine_bls_mt_chip = CombineBlsMtChip::new(&bls_signature_chip, merkle_tree_chip);
 
-    let result = combine_bls_mt_chip.combine_bls_mt_verify(ctx, root, merkle_infos, g1, signatures, pubkeys, msghash);
+    let result = combine_bls_mt_chip.combine_bls_mt_verify(ctx, root, merkle_infos, g1, signatures, pubkeys, message);
 
     assert_eq!(*result.value(), F::from(1));
 }
@@ -105,6 +107,11 @@ fn test_combine_bls_mt() {
 
     let json_data: MerkleData = serde_json::from_str(&data).expect("Invalid JSON");
     let root = f_from_string::<Fr>(&json_data.root);
+    let message = json_data.message.clone();
+    let message = f_from_string(&message);
+    let msg_hash = json_data.hash_msg.clone();
+    let msg_hash_to_fr = fr_from_string(&msg_hash);
+    let msg_hash = G2Affine::from(G2Affine::generator() * msg_hash_to_fr);
 
     let mut rng = rand::thread_rng();
     let num_agg = params.num_aggregation as usize;
@@ -113,7 +120,19 @@ fn test_combine_bls_mt() {
         G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()
     ).collect_vec();
     let sks = selected_leaves.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
-    let msg_hash = G2Affine::from(G2Affine::generator() * Fr::random(OsRng));
+
+    // TODO: fix this
+    // let message_str = "msg_hash".to_string();
+    // let msg_hash ="ec335129ec86d9704a3c93b47c7280fbe5d42b6768dd43ef613edb188f102b2e".to_string();
+    // let msg_to_fr = fr_from_string(&msg_hash);
+    // println!("msg_byte:{:?}",msg_to_fr);
+
+    // let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(OsRng));
+    // let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
+    // let msg_hash = G2Affine::from(G2Affine::generator() * msg_to_fr);
+
+    // println!("msg_hash:{:?}",msg_hash);
+
     let signatures = sks.iter().map(|x| G2Affine::from(msg_hash * x)).collect_vec();
 
     let merkle_infos = selected_leaves.iter().map(|path| {
@@ -126,13 +145,13 @@ fn test_combine_bls_mt() {
 
     base_test().k(params.degree).lookup_bits(params.lookup_bits).run(|ctx, range| {
         combine_bls_mt_test(ctx,range,params,root, &merkle_infos, G1Affine::generator()
-                , &signatures, &pubkeys, msg_hash);
+                , &signatures, &pubkeys, message);
     });
 }
 
 #[test]
 fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = "configs/bn254/bench_merkle_tree.config";
+    let config_path = "configs/bn254/bench_combine_bls_mt.config";
     let bench_params_file =
         File::open(config_path).unwrap_or_else(|e| panic!("{config_path} does not exist: {e:?}"));
     fs::create_dir_all("results/bn254").unwrap();
@@ -154,7 +173,13 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
         file.read_to_string(&mut data).expect("Unable to read file");
 
         let json_data: MerkleData = serde_json::from_str(&data).expect("Invalid JSON");
+
         let root = f_from_string::<Fr>(&json_data.root);
+        let message = json_data.message.clone();
+        let message = f_from_string::<Fr>(&message);
+        let msg_hash = json_data.hash_msg.clone();
+        let msg_hash_to_fr = fr_from_string(&msg_hash);
+        let msg_hash = G2Affine::from(G2Affine::generator() * msg_hash_to_fr);
 
         let mut rng = rand::thread_rng();
         let num_agg = bench_params.num_aggregation as usize;
@@ -163,7 +188,7 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
             G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()
         ).collect_vec();
         let sks = selected_leaves.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
-        let msg_hash = G2Affine::from(G2Affine::generator() * Fr::random(OsRng));
+
         let signatures = sks.iter().map(|x| G2Affine::from(msg_hash * x)).collect_vec();
         let merkle_infos = selected_leaves.iter().map(|path| {
             let leaf = fr_from_string(&path.pk_x);
@@ -173,9 +198,9 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
         }).collect_vec();
         let g1 = G1Affine::generator();
         let stats = base_test().k(k).lookup_bits(bench_params.lookup_bits).bench_builder(
-            (root, merkle_infos.clone(), g1, signatures.clone(), pubkeys.clone(), msg_hash),
-            (root, merkle_infos, g1, signatures, pubkeys, msg_hash),
-            |ctx, range, (root, merkle_infos, g1, signatures, pubkeys, msg_hash)| {
+            (root, merkle_infos.clone(), g1, signatures.clone(), pubkeys.clone(), message.clone()),
+            (root, merkle_infos, g1, signatures, pubkeys,  message),
+            |ctx, range, (root, merkle_infos, g1, signatures, pubkeys, message)| {
                 combine_bls_mt_test(
                     ctx.main(),
                     range,
@@ -185,7 +210,7 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
                     g1,
                     &signatures,
                     &pubkeys,
-                    msg_hash,
+                    message,
                 );
             },
         );

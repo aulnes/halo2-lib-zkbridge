@@ -76,7 +76,8 @@ impl<'chip, F: BigPrimeField, const T: usize, const RATE: usize> MerkleTreeChip<
         for merkle_info in merkle_infos.iter() {
             let MerkleInfo { leaf, path, index } = merkle_info;
             let x = ctx.load_witness(*leaf);
-            let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x]);
+            let zero = ctx.load_witness(F::ZERO);
+            let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x,zero]);
             let path = path.iter().map(|x| ctx.load_witness(*x)).collect::<Vec<_>>();
             let mut hash = poseidon;
             for i in 0..path.len() {

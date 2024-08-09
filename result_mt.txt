@@ -1,0 +1,9 @@
+    Finished test [optimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (target/debug/deps/halo2_ecc-ff458f914a36701b)
+
+running 1 test
+test bn254::tests::merkle_tree::bench_merkle_tree has been running for over 60 seconds
+error: test failed, to rerun pass `-p halo2-ecc --lib`
+
+Caused by:
+  process didn't exit successfully: `/home/wuyun/zk/halo2/halo2-lib/target/debug/deps/halo2_ecc-ff458f914a36701b 'bn254::tests::merkle_tree::bench_merkle_tree' --exact --show-output` (signal: 9, SIGKILL: kill)
