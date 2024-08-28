@@ -302,7 +302,7 @@ impl<F: ScalarField> BaseCircuitBuilder<F> {
                     let copy_manager = self.core.copy_manager.lock().unwrap();
                     let cell =
                         copy_manager.assigned_advices.get(&cell).expect("instance not assigned");
-                    layouter.constrain_instance(*cell, *instance_col, i);
+                    let _ = layouter.constrain_instance(*cell, *instance_col, i);
                 }
             }
         }

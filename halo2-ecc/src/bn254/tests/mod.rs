@@ -27,6 +27,7 @@ pub mod msm;
 pub mod msm_sum_infinity;
 pub mod msm_sum_infinity_fixed_base;
 pub mod pairing;
+pub mod msp;
 
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

@@ -9,6 +9,7 @@
 #![warn(clippy::default_numeric_fallback)]
 #![warn(missing_docs)]
 
+
 use getset::CopyGetters;
 use itertools::Itertools;
 // Different memory allocator options:

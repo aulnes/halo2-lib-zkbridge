@@ -9,6 +9,9 @@ pub mod final_exp;
 pub mod pairing;
 pub mod merkle_tree;
 pub mod combine_bls_mt;
+pub mod shuffle;
+pub mod msp;
+pub mod shuffle2;
 
 #[derive(Clone)]
 pub struct MerkleInfo<F: BigPrimeField>{

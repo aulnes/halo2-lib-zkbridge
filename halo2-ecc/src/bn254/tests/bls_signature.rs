@@ -78,8 +78,8 @@ fn test_bls_signature() {
     .unwrap();
     println!("num_advice: {num_advice}", num_advice = params.num_advice);
 
-    let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
-    // let msg_hash = G2Affine::random(OsRng);
+    // let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
+    let msg_hash = G2Affine::random(OsRng);
     // println!("hash(m):{:?}",msg_hash);
     let g1 = G1Affine::generator();
     // println!("g1:{:?}",g1);
@@ -161,9 +161,9 @@ fn bench_bls_signature() -> Result<(), Box<dyn std::error::Error>> {
             bench_params.limb_bits,
             bench_params.num_limbs,
             bench_params.num_aggregation,
-            stats.proof_time.time.elapsed(),
+            stats.proof_time,
             stats.proof_size,
-            stats.verify_time.time.elapsed()
+            stats.verify_time,
         )?;
     }
     Ok(())

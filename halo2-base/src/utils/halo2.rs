@@ -100,7 +100,7 @@ pub fn constrain_virtual_equals_external<F: Field + Ord>(
     match copy_manager.assigned_advices.entry(ctx_cell) {
         Entry::Occupied(acell) => {
             // The virtual cell has already been assigned, so we can constrain it to equal the external cell.
-            region.constrain_equal(*acell.get(), external_cell);
+            let _ = region.constrain_equal(*acell.get(), external_cell);
         }
         Entry::Vacant(assigned) => {
             // The virtual cell **must** be an external cell
