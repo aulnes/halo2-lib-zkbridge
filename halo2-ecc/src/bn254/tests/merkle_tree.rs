@@ -168,9 +168,9 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
             bench_params.num_limbs,
             bench_params.num_aggregation,
             bench_params.num_origin,
-            stats.proof_time.time.elapsed(),
+            stats.proof_time,
             stats.proof_size,
-            stats.verify_time.time.elapsed(),
+            stats.verify_time,
         )?;
     }
     Ok(())
