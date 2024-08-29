@@ -1,4 +1,6 @@
 //! Utilities for testing
+use std::time::Duration;
+
 use crate::{
     gates::{
         circuit::{builder::RangeCircuitBuilder, BaseCircuitParams, CircuitBuilderStage},
@@ -22,7 +24,7 @@ use crate::{
     },
     Context,
 };
-use ark_std::{end_timer, perf_trace::TimerInfo, start_timer};
+use ark_std::{end_timer, start_timer};
 use rand::{rngs::StdRng, SeedableRng};
 
 use super::fs::gen_srs;
@@ -223,9 +225,12 @@ impl BaseTester {
         let vk_time = start_timer!(|| "Generating vkey");
         let vk = keygen_vk(&params, &builder).unwrap();
         end_timer!(vk_time);
+        let vk_duration = vk_time.time.elapsed();
+
         let pk_time = start_timer!(|| "Generating pkey");
         let pk = keygen_pk(&params, vk, &builder).unwrap();
         end_timer!(pk_time);
+        let pk_duration = pk_time.time.elapsed();
 
         let break_points = builder.break_points();
         drop(builder);
@@ -236,14 +241,17 @@ impl BaseTester {
         f(builder.pool(0), &range, logic_input);
         let proof = gen_proof(&params, &pk, builder);
         end_timer!(proof_time);
+        let proof_duration = proof_time.time.elapsed();
 
         let proof_size = proof.len();
 
         let verify_time = start_timer!(|| "Verify time");
+        let verify_start_time = std::time::Instant::now();
         check_proof(&params, pk.get_vk(), &proof, self.expect_satisfied);
+        let verify_duration = verify_start_time.elapsed();
         end_timer!(verify_time);
 
-        BenchStats { config_params, vk_time, pk_time, proof_time, proof_size, verify_time }
+        BenchStats { config_params, vk_time: vk_duration, pk_time: pk_duration, proof_time: proof_duration, proof_size, verify_time: verify_duration }
     }
 }
 
@@ -252,13 +260,13 @@ pub struct BenchStats {
     /// Config params
     pub config_params: BaseCircuitParams,
     /// Vkey gen time
-    pub vk_time: TimerInfo,
+    pub vk_time: Duration,
     /// Pkey gen time
-    pub pk_time: TimerInfo,
+    pub pk_time: Duration,
     /// Proving time
-    pub proof_time: TimerInfo,
+    pub proof_time: Duration,
     /// Proof size in bytes
     pub proof_size: usize,
     /// Verify time
-    pub verify_time: TimerInfo,
+    pub verify_time: Duration,
 }

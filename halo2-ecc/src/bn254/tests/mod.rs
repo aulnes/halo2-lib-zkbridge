@@ -18,6 +18,8 @@ use rand_core::SeedableRng;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
+pub mod combine_bls_mt;
+pub mod merkle_tree;
 pub mod bls_signature;
 pub mod ec_add;
 pub mod fixed_base_msm;
@@ -25,6 +27,8 @@ pub mod msm;
 pub mod msm_sum_infinity;
 pub mod msm_sum_infinity_fixed_base;
 pub mod pairing;
+pub mod msp;
+
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct MSMCircuitParams {

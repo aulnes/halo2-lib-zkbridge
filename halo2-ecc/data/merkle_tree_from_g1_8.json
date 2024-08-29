@@ -1,0 +1,127 @@
+{
+  "hash_msg": "4cd6f95f714c5b2e2afcf70849d665d9e3751d78d3956b7ddff472145a18f803",
+  "leaves": [
+    {
+      "index": [
+        true,
+        true,
+        true
+      ],
+      "path": [
+        "f2ab2ff8dd1f47d9069c353cc93e9bc4c7e99a3f353c4aae11b94ec2cc0c6e18",
+        "d6899316e56bb98ba60c8bda14df03292f0b2bfb110e289790f15c6a8bc2c608",
+        "35641b868ea146af17fb8546096e3ca3e04ccefbdc0414b2dca1f02e6076ff04"
+      ],
+      "pk_x": "3ce3fc24d726768613f1750e6979b934d7ffaab40b6265f8677f9b246dfa4509",
+      "pk_y": "be0bd987b00e11d3f3943962e22960ff726acb696234f88d851429ea9ecd3a11",
+      "sk": "53d93c3c8a5effbbecdf037aa713107be2857735f2d7c65dc33f6d10f877ac2a"
+    },
+    {
+      "index": [
+        false,
+        true,
+        true
+      ],
+      "path": [
+        "5e921c6d9e06448666265905fb60b0925de44279cc065fd6ea34ac31fb8ed40d",
+        "d6899316e56bb98ba60c8bda14df03292f0b2bfb110e289790f15c6a8bc2c608",
+        "35641b868ea146af17fb8546096e3ca3e04ccefbdc0414b2dca1f02e6076ff04"
+      ],
+      "pk_x": "ba2d83eab2194e6c3900c8a4a30296cee6ceece2302f6ab826adb75835a3dd0f",
+      "pk_y": "e3b73c1e7a86911b3eeedf9158c0036cf605e38d93b2e94437171938c51c3302",
+      "sk": "95ec331cae2a1131de367cbc51414831370960718c542b76b95b5f6cd2d9fa20"
+    },
+    {
+      "index": [
+        true,
+        false,
+        true
+      ],
+      "path": [
+        "69fb36b9b9e67bac47e12f6fe74f50d42b403ca673973690276a43c955964023",
+        "51fa0c9a0bfe64db7d71776809fc700190023a78e6bfbe977f117adcca4b092e",
+        "35641b868ea146af17fb8546096e3ca3e04ccefbdc0414b2dca1f02e6076ff04"
+      ],
+      "pk_x": "139952d9e1c03e2a024d97b09aa08b63d12e61cbd28fd25b1b1f99a30176e62e",
+      "pk_y": "c17beba9e44398c3953d84946abbf60af15ad2c07544d61812aceb407c89e023",
+      "sk": "24adc14caa892917f6a24d613d35c95dfd0dc75926060a8027d46f4566762b04"
+    },
+    {
+      "index": [
+        false,
+        false,
+        true
+      ],
+      "path": [
+        "cd8d1c83adad61aa11c811500b5871854c5c299bb378f564aa46ed4f771fad1f",
+        "51fa0c9a0bfe64db7d71776809fc700190023a78e6bfbe977f117adcca4b092e",
+        "35641b868ea146af17fb8546096e3ca3e04ccefbdc0414b2dca1f02e6076ff04"
+      ],
+      "pk_x": "5a3491559b2823214fc333f90917b1295a9c36c7513981955ceef6b4c002b72c",
+      "pk_y": "8ac98f3b5ded235f68d305d6940e5634a2f1d2733c0e569d4feb4bda0b49cb29",
+      "sk": "70805dd3f45890a2b8750514566dfeb55e47c4a5b2b3c66fceb62a3ba57a8b20"
+    },
+    {
+      "index": [
+        true,
+        true,
+        false
+      ],
+      "path": [
+        "7384f421c23dd050b05db9626892e57886896109444348c39e0f1b188f3d9316",
+        "92abd870bb42c74c55b7ea4a3bb0523db965f6dcc0831531b9a77aeddea8040a",
+        "232885fbd7fc0daaf70ea081fb435fa3b9815d5241c7b37821e2c8d1c77e9424"
+      ],
+      "pk_x": "02761633652d08d47b59019076acdf5a84d8f25706e998bab0515ea3d2b1f32f",
+      "pk_y": "7e31a0f311a42b8b1c194e6a87c06ca2fb67432e24e042751bfb3caadfd2f302",
+      "sk": "ad9322e420edc80032ef1783d2def57c215596d58b42ef39427f0b0ad22a1b14"
+    },
+    {
+      "index": [
+        false,
+        true,
+        false
+      ],
+      "path": [
+        "11afef85873fdc4a79e6e7e650211c520ff86a247f92a654a53e7fda1cb1822f",
+        "92abd870bb42c74c55b7ea4a3bb0523db965f6dcc0831531b9a77aeddea8040a",
+        "232885fbd7fc0daaf70ea081fb435fa3b9815d5241c7b37821e2c8d1c77e9424"
+      ],
+      "pk_x": "71778587e60de554ae548bdde11d28cccb5ce4ec937b7274c0492b1b0e82b619",
+      "pk_y": "6cbe933022b04f5bc2b0bb748e080508196173566dce9ae8554a412b4676fa00",
+      "sk": "97acbaae079faea26138d9f864389768f7de2f414f45fbb2baba73f14d977901"
+    },
+    {
+      "index": [
+        true,
+        false,
+        false
+      ],
+      "path": [
+        "e4b22b5a1789e1829b78ac9d5c4cb92379c9db9d5dbc258450e7a3f11d234717",
+        "013dd0992fba817769f97224f99db7be2d8a5a9312f573387ee264a7a7660a12",
+        "232885fbd7fc0daaf70ea081fb435fa3b9815d5241c7b37821e2c8d1c77e9424"
+      ],
+      "pk_x": "4372eaecbf7c82ab3228b39bd970447ba260038c71d1390a7358bf7495345610",
+      "pk_y": "6c8bbee43e4e8b4ed80ca61722b47db62b72dd124d47363a7cccfc1340279006",
+      "sk": "e48e88d535a7937f26f17d03b22bddd979a346ff4c7be870ffd10fe549dd812f"
+    },
+    {
+      "index": [
+        false,
+        false,
+        false
+      ],
+      "path": [
+        "2121f67e05c2c0af342dc4d13c4a412414ba5d861f15ed55fad0972cdd26b10d",
+        "013dd0992fba817769f97224f99db7be2d8a5a9312f573387ee264a7a7660a12",
+        "232885fbd7fc0daaf70ea081fb435fa3b9815d5241c7b37821e2c8d1c77e9424"
+      ],
+      "pk_x": "01d9914b186d0408a7fd9f2677203f59bf4fd9e0d373d0b89dd99f1537ceb81d",
+      "pk_y": "fbb30a2f067cc49674983627c4e1361dbdd0369203b116099cf33c93c32bee2a",
+      "sk": "1b1e8d90edfb47f4d7d085aca93c74f4cdfe8d955a844cc4c77035ecc38f0806"
+    }
+  ],
+  "message": "410b2ee650913be822dbe66245a1b97b692be126457d3f6f1e7a144510d8a529",
+  "root": "dc252dc55329dac78a287704758fc4ed0ce90489746d1e5bacce0dcd482bdb23"
+}

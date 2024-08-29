@@ -13,6 +13,6 @@ pub mod secp256k1;
 
 pub use halo2_base;
 pub(crate) use halo2_base::halo2_proofs;
-use halo2_proofs::halo2curves;
-use halo2curves::ff;
-use halo2curves::group;
+pub use halo2_proofs::halo2curves;
+pub use halo2curves::ff;
+pub use halo2curves::group;

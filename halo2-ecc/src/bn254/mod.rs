@@ -2,10 +2,24 @@ use crate::bigint::ProperCrtUint;
 use crate::fields::vector::FieldVector;
 use crate::fields::{fp, fp12, fp2};
 use crate::halo2_proofs::halo2curves::bn256::{Fq, Fq12, Fq2};
+use halo2_base::utils::BigPrimeField;
 
 pub mod bls_signature;
 pub mod final_exp;
 pub mod pairing;
+pub mod merkle_tree;
+pub mod combine_bls_mt;
+pub mod shuffle;
+pub mod msp;
+pub mod shuffle2;
+
+#[derive(Clone)]
+pub struct MerkleInfo<F: BigPrimeField>{
+    pub leaf: F,
+    pub path: Vec<F>,
+    pub index: Vec<bool>, // true: left, false: right
+}
+
 
 pub type FpChip<'range, F> = fp::FpChip<'range, F, Fq>;
 pub type FpPoint<F> = ProperCrtUint<F>;

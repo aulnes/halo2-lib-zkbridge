@@ -1,0 +1,3 @@
+degree,num_advice,num_lookup,num_fixed,lookup_bits,limb_bits,num_limbs,num_aggregation,proof_time,proof_size,verify_time
+16,50,6,1,15,90,3,2,17.420047835s,22752,85.452366ms
+17,25,3,1,16,88,3,2,16.827189312s,11520,71.770536ms

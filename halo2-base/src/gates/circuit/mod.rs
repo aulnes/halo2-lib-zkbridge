@@ -1,3 +1,4 @@
+// use proptest::strategy::W;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::ScalarField;
@@ -13,6 +14,7 @@ use self::builder::BaseCircuitBuilder;
 
 use super::flex_gate::{FlexGateConfig, FlexGateConfigParams};
 use super::range::RangeConfig;
+// use super::shuffle::ShuffleConfig;
 
 /// Module that helps auto-build circuits
 pub mod builder;
@@ -66,6 +68,15 @@ pub enum MaybeRangeConfig<F: ScalarField> {
     /// Config for a circuit that does use range checks
     WithRange(RangeConfig<F>),
 }
+
+
+// #[derive(Clone, Debug)]
+// pub enum MaybeShuffleConfig<F: ScalarField> {
+//     /// Config for a circuit that does not use range checks
+//     WithoutShuffle(FlexGateConfig<F>),
+//     /// Config for a circuit that does use range checks
+//     WithShuffle(ShuffleConfig<F>),
+// }
 
 impl<F: ScalarField> BaseConfig<F> {
     /// Generates a new `BaseConfig` depending on `params`.
@@ -170,6 +181,9 @@ impl<F: ScalarField> Circuit<F> for BaseCircuitBuilder<F> {
         if let MaybeRangeConfig::WithRange(config) = &config.base {
             config.load_lookup_table(&mut layouter).expect("load lookup table should not fail");
         }
+        // if let MaybeShuffleConfig::WithShuffle(config) = &config.base {
+        //     config.load_shuffle(&mut layouter).expect("load shuffle should not fail");
+        // }
         // Only FirstPhase (phase 0)
         layouter
             .assign_region(

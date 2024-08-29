@@ -11,7 +11,7 @@ use crate::{
 };
 use halo2_base::{
     gates::RangeChip,
-    halo2_proofs::halo2curves::bn256::{multi_miller_loop, G2Prepared, Gt},
+    halo2_proofs::halo2curves::{bn256::{multi_miller_loop, G2Prepared, Gt}},
     utils::BigPrimeField,
     Context,
 };
@@ -78,16 +78,21 @@ fn test_bls_signature() {
     .unwrap();
     println!("num_advice: {num_advice}", num_advice = params.num_advice);
 
+    // let msg_hash = G2Affine::from(G2Affine::generator() * Fr::from(123456));
     let msg_hash = G2Affine::random(OsRng);
+    // println!("hash(m):{:?}",msg_hash);
     let g1 = G1Affine::generator();
+    // println!("g1:{:?}",g1);
     let mut signatures: Vec<G2Affine> = Vec::new();
     let mut pubkeys: Vec<G1Affine> = Vec::new();
     for _ in 0..params.num_aggregation {
         let sk = Fr::random(OsRng);
+        // print!("{:?}",sk);
         let signature = G2Affine::from(msg_hash * sk);
         let pubkey = G1Affine::from(G1Affine::generator() * sk);
-
         signatures.push(signature);
+        // println!("{:?}",pubkey);
+        // println!("{:?}",signature);
         pubkeys.push(pubkey);
     }
 
@@ -156,10 +161,22 @@ fn bench_bls_signature() -> Result<(), Box<dyn std::error::Error>> {
             bench_params.limb_bits,
             bench_params.num_limbs,
             bench_params.num_aggregation,
-            stats.proof_time.time.elapsed(),
+            stats.proof_time,
             stats.proof_size,
-            stats.verify_time.time.elapsed()
+            stats.verify_time,
         )?;
     }
     Ok(())
 }
+
+
+// #[test]
+// fn bls_with_merkle_tree_test<F:BigPrimeField>(
+//         ctx: &mut Context<F>,
+//     range: &RangeChip<F>,
+//     params: BlsSignatureCircuitParams,
+//     g1: G1Affine,
+//     signatures: &[G2Affine],
+//     pubkeys: &[G1Affine],
+//     msghash: G2Affine,
+// ){}

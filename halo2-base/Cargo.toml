@@ -57,7 +57,8 @@ jemallocator = { version = "=0.5", optional = true }
 mimalloc = { version = "=0.1", default-features = false, optional = true }
 
 [features]
-default = ["halo2-axiom", "display", "test-utils"]
+# default = ["halo2-axiom", "display", "test-utils"]
+default = ["halo2-pse", "display", "test-utils"]
 asm = ["halo2_proofs_axiom?/asm"]
 dev-graph = ["halo2_proofs?/dev-graph", "plotters"] # only works with halo2-pse for now
 halo2-pse = ["halo2_proofs/circuit-params"]

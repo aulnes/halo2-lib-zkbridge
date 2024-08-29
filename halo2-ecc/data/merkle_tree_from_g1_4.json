@@ -1,0 +1,59 @@
+{
+  "hash_msg": "e2486c7eb29924185d479f051773bc1f37e397934d15a4ca37e2563ba079da2e",
+  "leaves": [
+    {
+      "index": [
+        true,
+        true
+      ],
+      "path": [
+        "4c4301091258991810f50157627878a4a480b2ad6ddcf9868b80b5f4aa6ffc13",
+        "af49af63dddff66dace3e8e48ef393fae4c586999624de0224b413dcc84dac06"
+      ],
+      "pk_x": "ea446c020a9cdb4e4f536255a71af55fd2b36b6a574f547e1d3b9984f8cc2804",
+      "pk_y": "9db0d65f6ae36f9158141ac2f8f587b1b66d3d8ceb9d401d91c118a2fa3ca81d",
+      "sk": "59d8ba19a8819083d7d62f091745aef40014b6e248c78c617606e9db46163a05"
+    },
+    {
+      "index": [
+        false,
+        true
+      ],
+      "path": [
+        "2fc3abb82da529b89bbd3a3bef35ddb2fe01e1b145bd32c166ee5b00cccf3d26",
+        "af49af63dddff66dace3e8e48ef393fae4c586999624de0224b413dcc84dac06"
+      ],
+      "pk_x": "98d062cd4e138fa7266951db00e29aeda8796c58dcd214364647d9b4dc7c652e",
+      "pk_y": "355e1f75cb747ae4d81e667f62191c68962318bc2494f6497b01623ef50e252e",
+      "sk": "2fe6ece7a4507ddfc5b5fde608bdf2cbbb328f9fb661097e77da15eecebf4a1d"
+    },
+    {
+      "index": [
+        true,
+        false
+      ],
+      "path": [
+        "f8f9968770711fb6e087b84b09c3a4aa5704b5452ef5dd2221c343516307b91a",
+        "fc0ff9ee10f1ff6113ff6f7dcc6aa9c0dda37bff96b02c656833b4f10344601d"
+      ],
+      "pk_x": "562864126e1a60ab55ff97df3012aa4b9077be484cda58250e628dbb84c55024",
+      "pk_y": "c2c063515f0f072db60fe56feb411f867b0a356802b3e52f3225bba791066026",
+      "sk": "3cc1f391cc1f41867fcc1ad2b0fdd6ba88d68b3f1ba1d3286d9f03a8c9dfe62f"
+    },
+    {
+      "index": [
+        false,
+        false
+      ],
+      "path": [
+        "b2cd143fba3208ab0029240394e190536461ce1d9c8315c231cb3b19da4ac82b",
+        "fc0ff9ee10f1ff6113ff6f7dcc6aa9c0dda37bff96b02c656833b4f10344601d"
+      ],
+      "pk_x": "ce84eabbbcad12df4417d38c725c44c9cb2345cd96793a2bdd3ac66d940eee19",
+      "pk_y": "68463eeaa3888dba7c01525d994db6f022748ff3e26aa308024916f48199c017",
+      "sk": "54d291d97e8274175312d6191354973330054a6184e1e1a1952421c158c31c14"
+    }
+  ],
+  "message": "6714548828dec86a4b1399f5ca102f939df75a26fe13f99f0a9a5ebe30525a1f",
+  "root": "ce3de7ccf2e28e7586c2d71f13cac5a3786d40cd42e9b58eb4b732afeb252f21"
+}
