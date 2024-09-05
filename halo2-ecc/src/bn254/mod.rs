@@ -5,6 +5,7 @@ use crate::halo2_proofs::halo2curves::bn256::{Fq, Fq12, Fq2};
 use halo2_base::utils::BigPrimeField;
 
 pub mod bls_signature;
+pub mod bls_signature_inverse;
 pub mod final_exp;
 pub mod pairing;
 pub mod merkle_tree;

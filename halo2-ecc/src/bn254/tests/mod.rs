@@ -21,6 +21,7 @@ use std::io::Write;
 pub mod combine_bls_mt;
 pub mod merkle_tree;
 pub mod bls_signature;
+pub mod bls_signature_inverse;
 pub mod ec_add;
 pub mod fixed_base_msm;
 pub mod msm;
