@@ -1,0 +1,79 @@
+#![allow(non_snake_case)]
+
+use super::pairing::PairingChip;
+use super::{Fp12Chip, Fp2Chip, FpChip};
+use crate::ecc::EccChip;
+use crate::fields::FieldChip;
+use crate::halo2_proofs::halo2curves::bn256::Fq12;
+use crate::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
+use halo2_base::utils::BigPrimeField;
+use halo2_base::{AssignedValue, Context};
+
+// To avoid issues with mutably borrowing twice (not allowed in Rust), we only store fp_chip and construct g2_chip and fp12_chip in scope when needed for temporary mutable borrows
+pub struct BlsSignatureChip2<'chip, F: BigPrimeField> {
+    pub fp_chip: &'chip FpChip<'chip, F>,
+    pub pairing_chip: &'chip PairingChip<'chip, F>,
+}
+
+impl<'chip, F: BigPrimeField> BlsSignatureChip2<'chip, F> {
+    pub fn new(fp_chip: &'chip FpChip<F>, pairing_chip: &'chip PairingChip<F>) -> Self {
+        Self { fp_chip, pairing_chip }
+    }
+
+    // Verifies that e(signature, g2) = e(H(m), pubkey) by checking e(signature, g2)*e(H(m), -pubkey) === 1
+    // where e(,) is optimal Ate pairing
+    // G1: {signature, message}, G2: {g2, pubkey}
+    // TODO add support for aggregating signatures over different messages
+    pub fn bls_signature_verify(
+        &self,
+        ctx: &mut Context<F>,
+        g2: G2Affine,
+        signatures: &[G1Affine],
+        pubkeys: &[G2Affine],
+        msghash: G1Affine,
+    ) -> AssignedValue<F> {
+        assert!(
+            signatures.len() == pubkeys.len(),
+            "signatures and pubkeys must be the same length"
+        );
+        assert!(!signatures.is_empty(), "signatures must not be empty");
+        assert!(!pubkeys.is_empty(), "pubkeys must not be empty");
+
+        let g1_chip = EccChip::new(self.fp_chip);
+        let fp2_chip = Fp2Chip::<F>::new(self.fp_chip);
+        let g2_chip = EccChip::new(&fp2_chip);
+
+        let g2_assigned = self.pairing_chip.load_private_g2(ctx, g2);
+
+        let hash_m_assigned = self.pairing_chip.load_private_g1(ctx, msghash);
+
+        let signature_points = signatures
+            .iter()
+            .map(|pt| g1_chip.load_private::<G1Affine>(ctx, (pt.x, pt.y)))
+            .collect::<Vec<_>>();
+        let signature_agg_assigned = g1_chip.sum::<G1Affine>(ctx, signature_points);
+
+        let pubkey_points = pubkeys
+            .iter()
+            .map(|pt| g2_chip.load_private::<G2Affine>(ctx, (pt.x, pt.y)))
+            .collect::<Vec<_>>();
+        let pubkey_agg_assigned = g2_chip.sum::<G2Affine>(ctx, pubkey_points);
+
+        let fp12_chip = Fp12Chip::<F>::new(self.fp_chip);
+        let g12_chip = EccChip::new(&fp12_chip);
+        let neg_pubkey_assigned_g12 = g12_chip.negate(ctx, &pubkey_agg_assigned);
+
+        let multi_paired = self.pairing_chip.multi_miller_loop(
+            ctx,
+            vec![
+                (&signature_agg_assigned, &g2_assigned),
+                (&hash_m_assigned, &neg_pubkey_assigned_g12),
+            ],
+        );
+        let result = fp12_chip.final_exp(ctx, multi_paired);
+
+        // Check signatures are verified
+        let fp12_one = fp12_chip.load_constant(ctx, Fq12::one());
+        fp12_chip.is_equal(ctx, result, fp12_one)
+    }
+}
