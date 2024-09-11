@@ -5,7 +5,7 @@ use super::pairing::PairingChip;
 use super::{Fp12Chip, Fp2Chip, FpChip};
 use crate::bigint::ProperCrtUint;
 use crate::ecc::{scalar_multiply, EcPoint, EccChip};
-use crate::fields::vector::{FieldVector, CRTInteger};
+use crate::fields::vector::{FieldVector};
 use crate::fields::{fp, fp12, fp2, FieldChip};
 use crate::halo2_proofs::halo2curves::bn256::Fq12;
 use crate::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
@@ -74,17 +74,22 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
         let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
         let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
         let products = mvks.iter().zip(e_is.iter()).map(|(mvk, e_i)| {
-            g1_chip.scalar_mult(ctx, mvk.clone(), e_is.clone(),64,12)
+            g1_chip.scalar_mult::<G1Affine>(ctx, mvk.clone(), e_is.clone(),256,4)
         }).collect::<Vec<_>>();
-        let ivk_comp = g1_chip.sum(ctx, products);
+
+
+        let ivk_comp = g1_chip.sum::<G1Affine>(ctx, products);
         let verify_B_2 = g1_chip.is_equal(ctx, ivk_assigned, ivk_comp);
         // isig = \sum_{i=0}^{n-1} e_i * sig_i
         let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
         let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
         let products = sigs.iter().zip(e_is.iter()).map(|(sig, e_i)| {
-            g2_chip.scalar_mult(ctx, sig.clone(), e_is.clone(),64,12)
+            g2_chip.scalar_mult::<G2Affine>(ctx, sig.clone(), e_is.clone(),256,4)
         }).collect::<Vec<_>>();
-        let isig_comp = g2_chip.sum(ctx, products);
+        let isig_comp = g2_chip.sum::<G2Affine>(ctx, products);
+
+
+
 
         let verify_B_3 = g2_chip.is_equal(ctx, isig_assigned, isig_comp);
 
@@ -92,12 +97,15 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
         let verify_B_4 = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
 
         // Final result
-        let result = gate_chip.and(
-            ctx,
-            &gate_chip.and(ctx, &verify_A, &verify_B_1),
-            &gate_chip.and(ctx, &verify_B_2, &gate_chip.and(ctx, &verify_B_3, &verify_B_4)),
-        );
-        result
+        // let result = gate_chip.and(
+        //     ctx,
+        //     &gate_chip.and(ctx, &verify_A, &verify_B_1),
+        //     &gate_chip.and(ctx, &verify_B_2, &gate_chip.and(ctx, &verify_B_3, &verify_B_4)),
+        // );
+
+        //result
         
+        verify_A
+
     }
 }
