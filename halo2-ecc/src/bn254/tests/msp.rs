@@ -36,7 +36,7 @@ pub struct MspData {
     degree: u32,
     message: String,
     hash_msg: String,
-    keys: Vec<key_struct>,
+    pubkeys: Vec<key_struct>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ fn test_msp() {
 
     let mut rng = rand::thread_rng();
     let num_agg = params.num_aggregation as usize;
-    let selected_keys = json_data.keys.choose_multiple(&mut rng, num_agg).collect_vec();
+    let selected_keys = json_data.pubkeys.choose_multiple(&mut rng, num_agg).collect_vec();
     let sks: Vec<Fr> = selected_keys.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
     let pubkeys: Vec<G1Affine> = selected_keys.iter().map(|x| G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()).collect_vec();
 
@@ -157,9 +157,6 @@ fn test_msp() {
     for product in products.iter().skip(1) {
         isig = (isig + product).into();
     }
-    
-
-
 
     base_test().k(params.degree).lookup_bits(params.lookup_bits).run(|ctx, range| {
         msp_test(ctx,range,params, G1Affine::generator(), &signatures, &pubkeys, msg_hash, weighting_seed, ivk, isig);
