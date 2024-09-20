@@ -131,7 +131,7 @@ fn test_msp() {
 
     // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
     let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
-        let mut hasher = Poseidon::<Fr, 3, 2>::new(8, 57);
+        let mut hasher = Poseidon::<Fr, 3, 2>::new(8, 57); 
         hasher.update(&[Fr::from(i as u64), weighting_seed]);
         hasher.squeeze()
     }).collect::<Vec<_>>();
@@ -163,3 +163,115 @@ fn test_msp() {
     });
 }
 
+#[test]
+fn bench_msp() -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = "configs/bn254/bench_msp.config";
+    let bench_params_file =
+        File::open(config_path).unwrap_or_else(|e| panic!("{config_path} does not exist: {e:?}"));
+    fs::create_dir_all("results/bn254").unwrap();
+    fs::create_dir_all("data").unwrap();
+
+    let results_path = "results/bn254/msp_bench.csv";
+    let mut results_file = File::create(results_path).unwrap();
+    writeln!(results_file, "num_advice,degree,lookup_bits,limb_bits,num_limbs,num_aggregation,num_origin,proving_time,verification_time").unwrap();
+
+    let bench_params_reader = BufReader::new(bench_params_file);
+    for line in bench_params_reader.lines() {
+        let bench_params: CombineBlsMtCircuitParams =
+            serde_json::from_str(line.unwrap().as_str()).unwrap();
+        let k = bench_params.degree;
+        println!("---------------------- degree = {k} ------------------------------",);
+
+        let merkle_input_path = "data/data_for_msp_{num}.json".replace("{num}", &bench_params.num_origin.to_string());
+        let mut file = File::open(merkle_input_path).expect("Unable to open file");
+        let mut data = String::new();
+        file.read_to_string(&mut data).expect("Unable to read file");
+
+        let json_data: MspData = serde_json::from_str(&data).expect("Invalid JSON");
+        let message = json_data.message.clone();
+        let message = f_from_string::<Fr>(&message);
+        let msg_hash = json_data.hash_msg.clone();
+        let msg_hash_to_fr = fr_from_string(&msg_hash);
+        let msg_hash = G2Affine::from(G2Affine::generator() * msg_hash_to_fr);
+
+        let mut rng = rand::thread_rng();
+        let num_agg = bench_params.num_aggregation as usize;
+        let selected_keys = json_data.pubkeys.choose_multiple(&mut rng, num_agg).collect_vec();
+        let sks: Vec<Fr> = selected_keys.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
+        let pubkeys: Vec<G1Affine> = selected_keys.iter().map(|x| G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()).collect_vec();
+
+        let signatures = sks.iter().map(|x| G2Affine::from(msg_hash * x)).collect_vec();
+
+        // weighting_seed = H(signatures[0].x,signatures[1].x,...)
+        let mut hasher = Poseidon::<Fr, 3, 2>::new(8, 57);
+        let mut sigs_x: Vec<Fr> = Vec::new();
+        for sig in signatures.iter() {
+            let sig_x_c0_bytes = sig.x.c0.to_bytes();
+            let six_x_c0_fr = Fr::from_bytes(&sig_x_c0_bytes).unwrap();
+            sigs_x.push(six_x_c0_fr);
+        }
+        hasher.update(&sigs_x[..]);
+        let weighting_seed = hasher.squeeze();
+
+        // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
+        let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
+            let mut hasher = Poseidon::<Fr, 3, 2>::new(8, 57); 
+            hasher.update(&[Fr::from(i as u64), weighting_seed]);
+            hasher.squeeze()
+        }).collect::<Vec<_>>();
+
+        // ivk = \sigma pk_i*e_i
+        let products = pubkeys.iter().zip(e_is.iter()).map(|(pk, e_i)| {
+            G1Affine::from(pk * (*e_i))
+        }).collect::<Vec<_>>();
+
+        let mut ivk = products[0];
+        for product in products.iter().skip(1) {
+            ivk = (ivk + product).into();
+        }
+
+        // isig = \sigma sig_i*e_i
+        let products = signatures.iter().zip(e_is.iter()).map(|(sig, e_i)| {
+            G2Affine::from(sig * (*e_i))
+        }).collect::<Vec<_>>();
+
+        let mut isig = products[0];
+        for product in products.iter().skip(1) {
+            isig = (isig + product).into();
+        }
+
+        let stats = base_test().k(k).lookup_bits(bench_params.lookup_bits).bench_builder(
+            (G1Affine::generator(), signatures.clone(), pubkeys.clone(), msg_hash, weighting_seed, ivk, isig),
+            (G1Affine::generator(), signatures, pubkeys, msg_hash, weighting_seed, ivk, isig),
+            |pool, range, (g1, signatures, pubkeys, msg_hash, weighting_seed, ivk, isig)| {
+                msp_test(
+                    pool.main(),
+                    range,
+                    bench_params,
+                    g1,
+                    &signatures,
+                    &pubkeys,
+                    msg_hash,
+                    weighting_seed,
+                    ivk,
+                    isig,
+                );
+            },
+        );
+
+        writeln!(
+            results_file,
+            "{},{},{},{},{},{},{:?},{:?},{:?}",
+            bench_params.num_advice,
+            bench_params.degree,
+            bench_params.lookup_bits,
+            bench_params.limb_bits,
+            bench_params.num_limbs,
+            bench_params.num_aggregation,
+            bench_params.num_origin,
+            stats.proof_time,
+            stats.verify_time,
+        )?;
+    }
+    Ok(())
+}
