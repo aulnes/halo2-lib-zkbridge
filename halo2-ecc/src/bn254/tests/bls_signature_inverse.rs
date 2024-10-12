@@ -110,7 +110,7 @@ fn bench_bls_signature() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("results/bn254").unwrap();
     fs::create_dir_all("data").unwrap();
 
-    let results_path = "results/bn254/bls_signature_bench.csv";
+    let results_path = "results/bn254/bls_signature_bench2.csv";
     let mut fs_results = File::create(results_path).unwrap();
     writeln!(fs_results, "degree,num_advice,num_lookup,num_fixed,lookup_bits,limb_bits,num_limbs,num_aggregation,proof_time,proof_size,verify_time")?;
 

@@ -27,5 +27,3 @@ Cargo.lock
 
 **/results/*
 **/results/
-
-/halo2_ecc/data/
