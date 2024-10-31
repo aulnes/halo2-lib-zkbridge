@@ -19,8 +19,7 @@ use rand::seq::SliceRandom; // For random selection
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MerklePath {
     sk: String,
-    pk_x: String,
-    pk_y: String,
+    stake: String,
     path: Vec<String>,
     index: Vec<bool>,
 }
@@ -69,10 +68,13 @@ fn merkle_tree_test<F: BigPrimeField>(
     // let merkle_infos = vec![MerkleInfo{leaf, path, index}];
 
     let merkle_infos: Vec<MerkleInfo<F>> = merkle_paths.iter().map(|path| {
-        let leaf = f_from_string::<F>(&path.pk_x);
+        let sk = f_from_string::<Fr>(&path.sk);
+        let stake = f_from_string::<F>(&path.stake);
+        let pk = G1Affine::from(G1Affine::generator() * sk);
+        let leaf = F::from_bytes_le(&pk.x.to_bytes());
         let path_vals: Vec<F> = path.path.iter().map(|s| f_from_string::<F>(s)).collect();
         let index = path.index.clone();
-        MerkleInfo { leaf, path: path_vals, index }
+        MerkleInfo { leaf, stake, path: path_vals, index }
     }).collect();
 
     

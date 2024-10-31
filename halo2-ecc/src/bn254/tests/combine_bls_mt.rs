@@ -24,8 +24,7 @@ use rand::seq::SliceRandom; // For random selection
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MerklePath {
     sk: String,
-    pk_x: String,
-    pk_y: String,
+    stake : String,
     path: Vec<String>,
     index: Vec<bool>,
 }
@@ -117,8 +116,8 @@ fn test_combine_bls_mt() {
     let num_agg = params.num_aggregation as usize;
     let selected_leaves: Vec<&MerklePath> = json_data.leaves.choose_multiple(&mut rng, num_agg).collect();
     let pubkeys = selected_leaves.iter().map(|x| 
-        G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()
-    ).collect_vec();
+        G1Affine::from(G1Affine::generator() * fr_from_string(&x.sk)
+    )).collect_vec();
     let sks = selected_leaves.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
 
     // TODO: fix this
@@ -136,10 +135,12 @@ fn test_combine_bls_mt() {
     let signatures = sks.iter().map(|x| G2Affine::from(msg_hash * x)).collect_vec();
 
     let merkle_infos = selected_leaves.iter().map(|path| {
-        let leaf = fr_from_string(&path.pk_x);
+        let pk = G1Affine::from(G1Affine::generator() * fr_from_string(&path.sk));
+        let leaf = Fr::from_bytes_le(&pk.x.to_bytes());
+        let stake = f_from_string(&path.stake);
         let path_vals: Vec<Fr> = path.path.iter().map(|s| f_from_string(s)).collect();
         let index = path.index.clone();
-        MerkleInfo { leaf, path: path_vals, index }
+        MerkleInfo { leaf, stake, path: path_vals, index }
     }).collect_vec();
 
 
@@ -185,16 +186,18 @@ fn bench_merkle_tree() -> Result<(), Box<dyn std::error::Error>> {
         let num_agg = bench_params.num_aggregation as usize;
         let selected_leaves: Vec<&MerklePath> = json_data.leaves.choose_multiple(&mut rng, num_agg).collect();
         let pubkeys = selected_leaves.iter().map(|x| 
-            G1Affine::from_xy(fq_from_string(&x.pk_x), fq_from_string(&x.pk_y)).unwrap()
+            G1Affine::from(G1Affine::generator() * fr_from_string(&x.sk))
         ).collect_vec();
         let sks = selected_leaves.iter().map(|x| fr_from_string(&x.sk)).collect_vec();
 
         let signatures = sks.iter().map(|x| G2Affine::from(msg_hash * x)).collect_vec();
         let merkle_infos = selected_leaves.iter().map(|path| {
-            let leaf = fr_from_string(&path.pk_x);
+            let pk = G1Affine::from(G1Affine::generator() * fr_from_string(&path.sk));
+            let leaf = Fr::from_bytes_le(&pk.x.to_bytes());
+            let stake = f_from_string(&path.stake);
             let path_vals: Vec<Fr> = path.path.iter().map(|s| f_from_string(s)).collect();
             let index = path.index.clone();
-            MerkleInfo { leaf, path: path_vals, index }
+            MerkleInfo { leaf, stake, path: path_vals, index }
         }).collect_vec();
         let g1 = G1Affine::generator();
         let stats = base_test().k(k).lookup_bits(bench_params.lookup_bits).bench_builder(

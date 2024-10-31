@@ -17,6 +17,7 @@ pub mod shuffle2;
 #[derive(Clone)]
 pub struct MerkleInfo<F: BigPrimeField>{
     pub leaf: F,
+    pub stake: F,
     pub path: Vec<F>,
     pub index: Vec<bool>, // true: left, false: right
 }

@@ -43,12 +43,12 @@ impl<'chip, F: BigPrimeField, const T: usize, const RATE: usize> MerkleTreeChip<
         root: F,
         merkle_info: MerkleInfo<F>,
     ) -> AssignedValue<F> {
-        let MerkleInfo { leaf, path, index } = merkle_info;
+        let MerkleInfo { leaf, stake, path, index } = merkle_info;
         println!("- Merkle: root: {:?}, leaf: {:?}, path: {:?}, index: {:?}", root, leaf, path, index);
 
         let x = ctx.load_witness(leaf);
-
-        let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x]);
+        let stake = ctx.load_witness(stake);
+        let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x,stake]);
         let path = path.iter().map(|x| ctx.load_witness(*x)).collect::<Vec<_>>();
         let mut hash = poseidon;
         println!("- Merkle: hash: {:?}", hash.value());
@@ -74,10 +74,11 @@ impl<'chip, F: BigPrimeField, const T: usize, const RATE: usize> MerkleTreeChip<
     ) -> AssignedValue<F> {
         let mut hashes = Vec::new();
         for merkle_info in merkle_infos.iter() {
-            let MerkleInfo { leaf, path, index } = merkle_info;
+            let MerkleInfo { leaf, stake, path, index } = merkle_info;
             let x = ctx.load_witness(*leaf);
-            let zero = ctx.load_witness(F::ZERO);
-            let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x,zero]);
+            // let zero = ctx.load_witness(F::ZERO);
+            let stake = ctx.load_witness(*stake);
+            let poseidon =self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[x,stake]);
             let path = path.iter().map(|x| ctx.load_witness(*x)).collect::<Vec<_>>();
             let mut hash = poseidon;
             for i in 0..path.len() {
