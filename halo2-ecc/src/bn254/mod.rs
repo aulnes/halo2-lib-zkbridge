@@ -13,6 +13,7 @@ pub mod combine_bls_mt;
 pub mod shuffle;
 pub mod msp;
 pub mod shuffle2;
+pub mod merkle_path_select;
 
 #[derive(Clone)]
 pub struct MerkleInfo<F: BigPrimeField>{
