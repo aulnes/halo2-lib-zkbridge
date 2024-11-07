@@ -14,6 +14,8 @@ pub mod shuffle;
 pub mod msp;
 pub mod shuffle2;
 pub mod merkle_path_select;
+pub mod compare;
+pub mod eligibility_check;
 
 #[derive(Clone)]
 pub struct MerkleInfo<F: BigPrimeField>{
