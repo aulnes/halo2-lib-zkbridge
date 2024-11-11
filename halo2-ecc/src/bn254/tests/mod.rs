@@ -30,6 +30,7 @@ pub mod msm_sum_infinity_fixed_base;
 pub mod pairing;
 pub mod msp;
 pub mod merkle_path_select;
+pub mod eligibility_check;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct MSMCircuitParams {
