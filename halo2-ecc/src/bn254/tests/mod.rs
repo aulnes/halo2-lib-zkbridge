@@ -31,6 +31,7 @@ pub mod pairing;
 pub mod msp;
 pub mod merkle_path_select;
 pub mod eligibility_check;
+pub mod merkle_root;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct MSMCircuitParams {
