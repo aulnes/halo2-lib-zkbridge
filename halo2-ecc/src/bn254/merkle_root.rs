@@ -50,7 +50,14 @@ impl<'chip, F: BigPrimeField, const T: usize, const RATE: usize> MerkleRootChip<
         let len = leaves.len();
         let depth = len.ilog2();
 
-        let mut layer =  leaves.iter().map(|x| ctx.load_witness(*x)).collect::<Vec<_>>();
+        let padding = ctx.load_witness(F::ZERO);
+
+        let rawleaves = leaves.iter().map(|x| ctx.load_witness(*x)).collect::<Vec<_>>();
+        let mut layer = rawleaves
+                                            .iter()
+                                            .map(|x| 
+                                                self.poseidon_chip.hash_fix_len_array(ctx, &self.gate_chip, &[*x, padding]))
+                                            .collect::<Vec<_>>();
 
         for _ in 0..depth{
             layer = self.merkle_root_verify_layer(ctx, layer.clone());
