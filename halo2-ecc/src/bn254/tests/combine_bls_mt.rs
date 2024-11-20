@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 // use env_logger::init;
-use halo2_base::{gates::GateChip, halo2_proofs::arithmetic::CurveAffine, poseidon::hasher::{spec::OptimizedPoseidonSpec, PoseidonHasher}};
+use halo2_base::{gates::GateChip, poseidon::hasher::{spec::OptimizedPoseidonSpec, PoseidonHasher}};
 use halo2_base::Context;
 use halo2_base::utils::BigPrimeField;
 use itertools::Itertools;
@@ -59,11 +59,6 @@ fn f_from_string<F: BigPrimeField>(s: &str) -> F {
 fn fr_from_string(s: &str) -> Fr {
     let bytes:[u8; 32] = hex::decode(s).expect("Invalid hex string").try_into().expect("Invalid Fr bytes");
     let result = Fr::from_bytes(&bytes).unwrap();
-    result
-}
-fn fq_from_string(s: &str) -> Fq {
-    let bytes:[u8; 32] = hex::decode(s).expect("Invalid hex string").try_into().expect("Invalid Fr bytes");
-    let result = Fq::from_bytes(&bytes).unwrap();
     result
 }
 

@@ -14,7 +14,6 @@ use crate::bn254::merkle_root::MerkleRootChip;
 // use crate::halo2_proofs::halo2curves::bn256::G2Affine;
 use halo2_base::poseidon::hasher::spec::OptimizedPoseidonSpec;
 use std::io::Read;
-use rand::seq::SliceRandom; // For random selection
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MerkleRootData {

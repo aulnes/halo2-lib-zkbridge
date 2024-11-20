@@ -1,5 +1,5 @@
 use halo2_base::{halo2_proofs::{
-    arithmetic::{CurveAffine, Field}, circuit::{floor_planner::V1, Layouter, Value}, dev::{metadata, FailureLocation, MockProver, VerifyFailure}, halo2curves::{bn256::{Bn256, Fr, G1Affine}, pasta::EqAffine}, plonk::*, poly::{
+    arithmetic::{CurveAffine, Field}, circuit::{floor_planner::V1, Layouter, SimpleFloorPlanner, Value}, dev::{metadata, FailureLocation, MockProver, VerifyFailure}, halo2curves::{bn256::{Bn256, Fr, G1Affine}, pasta::EqAffine}, plonk::*, poly::{
         commitment::ParamsProver, ipa::{
             commitment::{IPACommitmentScheme, ParamsIPA},
             multiopen::{ProverIPA, VerifierIPA},
@@ -383,8 +383,8 @@ where
 
 #[test]
 fn test_shuffle() {
-    const W: usize = 2;
-    const H: usize = 1024;
+    const W: usize = 3;
+    const H: usize = 4096;
     const K: u32 = 18;
 
     let config_path = "configs/bn254/shuffle.config";
