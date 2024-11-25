@@ -27,7 +27,7 @@ pub type FpConfig<F> = RangeConfig<F>;
 /// A reduced representation guarantees that there is a *unique* representation of each field element.
 /// Typically this means Uints that are less than the modulus.
 #[derive(Clone, Debug)]
-pub struct Reduced<FieldPoint, Fp>(pub(crate) FieldPoint, PhantomData<Fp>);
+pub struct Reduced<FieldPoint, Fp>(pub(crate) FieldPoint, pub(crate)PhantomData<Fp>);
 
 impl<FieldPoint, Fp> Reduced<FieldPoint, Fp> {
     pub fn as_ref(&self) -> Reduced<&FieldPoint, Fp> {

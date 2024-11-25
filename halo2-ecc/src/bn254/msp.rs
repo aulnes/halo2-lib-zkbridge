@@ -1,20 +1,16 @@
 #![allow(non_snake_case)]
 
 use super::bls_signature::BlsSignatureChip;
-use super::pairing::PairingChip;
-use super::{Fp12Chip, Fp2Chip, FpChip};
+use super:: Fp2Chip;
 use crate::bigint::ProperCrtUint;
-use crate::ecc::{scalar_multiply, EcPoint, EccChip};
-use crate::fields::vector::{FieldVector};
-use crate::fields::{fp, fp12, fp2, FieldChip};
-use crate::halo2_proofs::halo2curves::bn256::Fq12;
+use crate::ecc::{EcPoint, EccChip};
+use crate::fields::vector::FieldVector;
 use crate::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
+use halo2_base::gates::flex_gate::threads::SinglePhaseCoreManager;
 use halo2_base::gates::{GateChip,GateInstructions};
-use halo2_base::halo2_proofs::halo2curves::bn256::{Fq, Fq2};
 use halo2_base::poseidon::hasher::PoseidonHasher;
-use halo2_base::utils::BigPrimeField;
+use halo2_base::utils::{fe_to_biguint, BigPrimeField};
 use halo2_base::{AssignedValue, Context};
-use rayon::result;
 
 // To avoid issues with mutably borrowing twice (not allowed in Rust), we only store fp_chip and construct g2_chip and fp12_chip in scope when needed for temporary mutable borrows
 pub struct MspChip<'chip, F: BigPrimeField> {
@@ -201,5 +197,146 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
         result
 
 
+    }
+
+
+    pub fn msp_verify_msm_helper(
+        &self,
+        pool: &mut SinglePhaseCoreManager<F>,
+        g1: G1Affine,
+        signatures: &[G2Affine],
+        pubkeys: &[G1Affine], // mvk
+        msghash: G2Affine,
+        weighting_seed : F,
+        ivk: G1Affine,
+        isig: G2Affine,
+    ) -> (
+        Vec<EcPoint<F, ProperCrtUint<F>>>, 
+        Vec<EcPoint<F, FieldVector<ProperCrtUint<F>>>>, 
+        Vec<Vec<AssignedValue<F>>>,
+        AssignedValue<F>,
+    ) {
+
+        let ctx = pool.main();
+        // B
+        let signatures_x_assigned = signatures.iter().map(|pt| {
+            ctx.load_witness(F::from_bytes_le(&pt.x.c0.to_bytes()))
+        }).collect::<Vec<_>>();
+        let gate_chip = GateChip::<F>::default();
+        let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
+        let weighting_seed_assigned = ctx.load_witness(weighting_seed);
+        // B_1 : verify weighting seed
+        let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
+        assert_eq!(*verify_B_1.value(),F::ONE);
+        // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
+        let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
+            let i_assigned = ctx.load_witness(F::from(i as u64));
+            let e_i = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned]);
+            vec![e_i]
+        }).collect::<Vec<_>>();
+
+        // let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
+        // let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
+        // let g2_chip = EccChip::new(&fp2_chip);
+        // B_2 : verify ivk, isig
+        // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
+        // let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
+        let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
+        // let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
+        let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
+        
+        let verify = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
+    
+        (mvks,sigs,e_is,verify)
+    
+    }
+
+
+    pub fn msp_verify_msm(
+        &self,
+        pool: &mut SinglePhaseCoreManager<F>,
+        g1: G1Affine,
+        signatures: &[G2Affine],
+        pubkeys: &[G1Affine], // mvk
+        msghash: G2Affine,
+        weighting_seed : F,
+        ivk: G1Affine,
+        isig: G2Affine, // \mu
+    ) -> AssignedValue<F> {
+        // TODO: verify proof of possesion
+
+        // A: verify BLS signature
+        // let verify_A = self.bls_signature_chip.bls_signature_verify(ctx, g1, signatures, pubkeys, msghash);
+
+        // let ctx = pool.main();
+
+        // // B
+        // let signatures_x_assigned = signatures.iter().map(|pt| {
+        //     ctx.load_witness(F::from_bytes_le(&pt.x.c0.to_bytes()))
+        // }).collect::<Vec<_>>();
+        // let gate_chip = GateChip::<F>::default();
+        // let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
+        // let weighting_seed_assigned = ctx.load_witness(weighting_seed);
+        // // B_1 : verify weighting seed
+        // let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
+        // // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
+        // let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
+        //     let i_assigned = ctx.load_witness(F::from(i as u64));
+        //     let e_i = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned]);
+        //     vec![e_i]
+        // }).collect::<Vec<_>>();
+
+        // let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
+        // let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
+        // let g2_chip = EccChip::new(&fp2_chip);
+        // // B_2 : verify ivk, isig
+        // // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
+        // let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
+        // let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
+        // let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
+        // let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
+        
+        // let verify = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
+        
+        let (mvks,sigs,e_is,verify) = self.msp_verify_msm_helper(pool, g1, signatures, pubkeys, msghash, weighting_seed, ivk, isig);
+
+        let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
+        let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
+        let g2_chip = EccChip::new(&fp2_chip);
+
+        let msm_g1 = g1_chip.variable_base_msm_custom::<G1Affine>(
+            pool,
+            &mvks,
+            e_is.clone(),
+            254,
+            4,
+        );
+        
+        let msm_g1_x = msm_g1.x.value();
+        let msm_g1_y = msm_g1.y.value();
+
+        assert_eq!(msm_g1_x, fe_to_biguint(&ivk.x));
+        assert_eq!(msm_g1_y, fe_to_biguint(&ivk.y));
+        
+        let msm_g2 = g2_chip.variable_base_msm_custom::<G2Affine>(
+            pool,
+            &sigs,
+            e_is,
+            254,
+            4,
+        );
+
+        let msm_g2_x0 = msm_g2.x[0].value();
+        let msm_g2_x1 = msm_g2.x[1].value();
+        let msm_g2_y0 = msm_g2.y[0].value();
+        let msm_g2_y1 = msm_g2.y[1].value();
+
+        assert_eq!(msm_g2_x0, fe_to_biguint(&isig.x.c0));
+        assert_eq!(msm_g2_x1, fe_to_biguint(&isig.x.c1));
+        assert_eq!(msm_g2_y0, fe_to_biguint(&isig.y.c0));
+        assert_eq!(msm_g2_y1, fe_to_biguint(&isig.y.c1));
+
+        
+        verify
     }
 }

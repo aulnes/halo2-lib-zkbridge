@@ -1,18 +1,14 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use crate::ff::PrimeField as _;
 use crate::impl_field_ext_chip_common;
 
 use super::{
-    vector::{FieldVector, FieldVectorChip},
-    BigPrimeField, FieldChip, FieldExtConstructor, PrimeFieldChip,
-    Selectable,
+    fp::Reduced, vector::{FieldVector, FieldVectorChip}, BigPrimeField, FieldChip, FieldExtConstructor, PrimeFieldChip, Selectable
 };
 use crate::bigint::{
-    add_no_carry, big_is_equal, big_is_even, big_is_zero, carry_mod, check_carry_mod_to_zero,
-    mul_no_carry, scalar_mul_and_add_no_carry, scalar_mul_no_carry, select, select_by_indicator,
-    sub, sub_no_carry, CRTInteger, FixedCRTInteger, OverflowInteger, ProperCrtUint, ProperUint,
+    select, select_by_indicator,
+    ProperCrtUint
 };
 use halo2_base::{utils::modulus, AssignedValue, Context};
 use num_bigint::BigUint;
@@ -163,6 +159,46 @@ where
 }
 
 
+impl <'a, F, Fp, FpChip, Fp2> Selectable<F, FieldVector<Reduced<ProperCrtUint<F>, Fp>>> for Fp2Chip<'a, F, FpChip, Fp2>
+where
+    F: BigPrimeField,
+    Fp: BigPrimeField,
+    FpChip::FieldType: BigPrimeField,
+    FpChip: PrimeFieldChip<F>,
+    Fp2: crate::ff::Field + FieldExtConstructor<FpChip::FieldType, 2>,
+    FieldVector<FpChip::UnsafeFieldPoint>: From<FieldVector<FpChip::FieldPoint>>,
+    FieldVector<FpChip::FieldPoint>: From<FieldVector<FpChip::ReducedFieldPoint>>,
+{
+    fn select(
+        &self,
+        ctx: &mut Context<F>,
+        a: FieldVector<Reduced<ProperCrtUint<F>, Fp>>,
+        b: FieldVector<Reduced<ProperCrtUint<F>, Fp>>,
+        sel: AssignedValue<F>,
+    ) -> FieldVector<Reduced<ProperCrtUint<F>, Fp>> {
+
+        FieldVector(vec![
+            Reduced(ProperCrtUint(select::crt(self.gate(), ctx, a.0[0].0.clone().into(), b.0[0].0.clone().into(), sel)), PhantomData),
+            Reduced(ProperCrtUint(select::crt(self.gate(), ctx, a.0[1].0.clone().into(), b.0[1].0.clone().into(), sel)), PhantomData),
+        ])
+
+        
+    }
+
+    fn select_by_indicator(
+        &self,
+        ctx: &mut Context<F>,
+        a: &impl AsRef<[FieldVector<Reduced<ProperCrtUint<F>, Fp>>]>,
+        coeffs: &[AssignedValue<F>],
+    ) -> FieldVector<Reduced<ProperCrtUint<F>, Fp>> {
+        let out0 = select_by_indicator::crt(self.gate(), ctx, &a.as_ref().iter().map(|x| x.0[0].0.clone()).collect::<Vec<_>>(), coeffs, &self.fp_chip().limb_bases());
+        let out1 = select_by_indicator::crt(self.gate(), ctx, &a.as_ref().iter().map(|x| x.0[1].0.clone()).collect::<Vec<_>>(), coeffs, &self.fp_chip().limb_bases());
+     FieldVector(vec![
+        Reduced(ProperCrtUint(out0), PhantomData),
+        Reduced(ProperCrtUint(out1), PhantomData),
+    ])
+}
+}
 
 mod bn254 {
     use crate::fields::FieldExtConstructor;
