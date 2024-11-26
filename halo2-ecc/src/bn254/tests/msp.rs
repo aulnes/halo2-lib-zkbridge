@@ -428,13 +428,13 @@ fn bench2_msp() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn bench_msp_msm() -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = "configs/bn254/bench_msp.config";
+    let config_path = "configs/bn254/bench_msp_msm.config";
     let bench_params_file =
         File::open(config_path).unwrap_or_else(|e| panic!("{config_path} does not exist: {e:?}"));
     fs::create_dir_all("results/bn254").unwrap();
     fs::create_dir_all("data").unwrap();
 
-    let results_path = "results/bn254/msp_bench.csv";
+    let results_path = "results/bn254/msp_msm_bench.csv";
     let mut results_file = File::create(results_path).unwrap();
     writeln!(results_file, "num_advice,degree,lookup_bits,limb_bits,num_limbs,num_aggregation,num_origin,proving_time,proof_size,verification_time").unwrap();
 
