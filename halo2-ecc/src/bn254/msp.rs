@@ -312,11 +312,6 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
             4,
         );
         
-        let msm_g1_x = msm_g1.x.value();
-        let msm_g1_y = msm_g1.y.value();
-
-        assert_eq!(msm_g1_x, fe_to_biguint(&ivk.x));
-        assert_eq!(msm_g1_y, fe_to_biguint(&ivk.y));
         
         let msm_g2 = g2_chip.variable_base_msm_custom::<G2Affine>(
             pool,
@@ -326,15 +321,15 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
             4,
         );
 
-        let msm_g2_x0 = msm_g2.x[0].value();
-        let msm_g2_x1 = msm_g2.x[1].value();
-        let msm_g2_y0 = msm_g2.y[0].value();
-        let msm_g2_y1 = msm_g2.y[1].value();
+        let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(pool.main(), ivk);
+        let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(pool.main(), isig);
 
-        assert_eq!(msm_g2_x0, fe_to_biguint(&isig.x.c0));
-        assert_eq!(msm_g2_x1, fe_to_biguint(&isig.x.c1));
-        assert_eq!(msm_g2_y0, fe_to_biguint(&isig.y.c0));
-        assert_eq!(msm_g2_y1, fe_to_biguint(&isig.y.c1));
+        // check equal
+        let verify_ivk = g1_chip.is_equal(pool.main(), ivk_assigned, msm_g1);
+        let verify_isig = g2_chip.is_equal(pool.main(), isig_assigned, msm_g2);
+
+        assert_eq!(*verify_ivk.value(),F::ONE);
+        assert_eq!(*verify_isig.value(),F::ONE);
 
         
         verify
