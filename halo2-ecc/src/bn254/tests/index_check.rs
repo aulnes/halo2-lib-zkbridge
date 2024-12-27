@@ -3,17 +3,14 @@ use std::{
     io::{BufRead, BufReader},
 };
 // use env_logger::init;
-use halo2_base::{gates::GateChip, halo2_proofs::arithmetic::{CurveAffine, Field}, poseidon::hasher::{spec::OptimizedPoseidonSpec, PoseidonHasher}};
 use halo2_base::Context;
 use halo2_base::utils::BigPrimeField;
-use itertools::Itertools;
+
 // use rand_core::OsRng;
 // use rand::rngs::OsRng;
 use serde::{Serialize, Deserialize};
 use super::*;
-use crate::bn254::{eligibility_check::EligibilityCheckChip, index_check::IndexCheckChip};
-use crate::halo2_proofs::halo2curves::bn256::{Fq,G2Affine};
-use std::io::Read;
+use crate::bn254::index_check::IndexCheckChip;
 use rand::seq::SliceRandom;  // 引入 SliceRandom 特征
 use rand::thread_rng;
 

@@ -335,6 +335,63 @@ fn bench_merkle_path_select_4096() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn bench_merkle_path_select_512() -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = "configs/bn254/bench_merkle_tree_512.config";
+    let bench_params_file =
+        File::open(config_path).unwrap_or_else(|e| panic!("{config_path} does not exist: {e:?}"));
+    fs::create_dir_all("results/bn254").unwrap();
+    
+    let results_path = "results/bn254/merkle_tree_bench_512.csv";
+    let mut fs_results = File::create(results_path).unwrap();
+    writeln!(fs_results, "degree,num_advice,num_lookup_advice,num_fixed,lookup_bits,limb_bits,num_limbs,num_aggregation,num_origin,proof_time,proof_size,verify_time")?;
+
+    let bench_params_reader = BufReader::new(bench_params_file);
+    for line in bench_params_reader.lines() {
+        let bench_params: MerkleTreeCircuitParams =
+            serde_json::from_str(line.unwrap().as_str()).unwrap();
+        let k = bench_params.degree;
+        println!("---------------------- degree = {k} ------------------------------",);
+
+        let merkle_input_path = "data/merkle_tree_from_g1_{num}.json".replace("{num}", &bench_params.num_origin.to_string());
+        let mut file = File::open(merkle_input_path).expect("Unable to open file");
+        let mut data = String::new();
+        file.read_to_string(&mut data).expect("Unable to read file");
+
+        let json_data: MerkleData = serde_json::from_str(&data).expect("Invalid JSON");
+        let root = f_from_string::<Fr>(&json_data.root);
+
+        let mut rng = rand::thread_rng();
+        let num_agg = bench_params.num_aggregation as usize;
+        let selected_leaves: Vec<&MerklePath> = json_data.leaves.choose_multiple(&mut rng, num_agg).collect();
+
+        let stats = base_test().k(k).lookup_bits(bench_params.lookup_bits).bench_builder(
+            (root, selected_leaves.clone()),
+            (root, selected_leaves),
+            |ctx, range, (root, selected_leaves)| {
+                merkle_path_select_test(ctx.main(),range, bench_params,root, selected_leaves);
+            },
+        );
+
+        writeln!(fs_results, 
+            "{},{},{},{},{},{},{},{},{},{:?},{},{:?}",
+            k,
+            bench_params.num_advice,
+            bench_params.num_lookup_advice,
+            bench_params.num_fixed,
+            bench_params.lookup_bits,
+            bench_params.limb_bits,
+            bench_params.num_limbs,
+            bench_params.num_aggregation,
+            bench_params.num_origin,
+            stats.proof_time,
+            stats.proof_size,
+            stats.verify_time,
+        )?;
+    }
+    Ok(())
+}
+
 
 #[test]
 fn bench_merkle_path_select_mithril() -> Result<(), Box<dyn std::error::Error>> {
