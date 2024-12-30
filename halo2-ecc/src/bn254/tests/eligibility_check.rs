@@ -16,12 +16,14 @@ use crate::bn254::eligibility_check::EligibilityCheckChip;
 use crate::halo2_proofs::halo2curves::bn256::{Fq,G2Affine};
 use std::io::Read;
 
+#[allow(non_camel_case_types)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct g1_struct {
     x: String,
     y: String,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct g2_struct {
     x_c0: String,

@@ -9,7 +9,7 @@ use crate::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
 use halo2_base::gates::flex_gate::threads::SinglePhaseCoreManager;
 use halo2_base::gates::{GateChip,GateInstructions};
 use halo2_base::poseidon::hasher::PoseidonHasher;
-use halo2_base::utils::{fe_to_biguint, BigPrimeField};
+use halo2_base::utils::BigPrimeField;
 use halo2_base::{AssignedValue, Context};
 
 // To avoid issues with mutably borrowing twice (not allowed in Rust), we only store fp_chip and construct g2_chip and fp12_chip in scope when needed for temporary mutable borrows
