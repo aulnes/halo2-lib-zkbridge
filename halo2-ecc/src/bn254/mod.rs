@@ -18,6 +18,7 @@ pub mod compare;
 pub mod eligibility_check;
 pub mod merkle_root;
 pub mod index_check;
+pub mod atms_prod;
 
 #[derive(Clone)]
 pub struct MerkleInfo<F: BigPrimeField>{
