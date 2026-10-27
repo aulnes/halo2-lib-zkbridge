@@ -48,7 +48,7 @@ test-log = "0.2.12"
 env_logger = "0.10.0"
 proptest = "1.1.0"
 # native poseidon for testing
-pse-poseidon = { git = "https://github.com/axiom-crypto/pse-poseidon.git" }
+pse-poseidon = { git = "https://github.com/axiom-crypto/pse-poseidon.git", rev = "19d3b09481bda0e95e7c005906365d070fceb752" }
 
 # memory allocation
 [target.'cfg(not(target_env = "msvc"))'.dependencies]

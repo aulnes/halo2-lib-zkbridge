@@ -10,8 +10,8 @@ use crate::{
     halo2_proofs::halo2curves::bn256::G2Affine,
 };
 use halo2_base::{
-    gates::RangeChip,
-    halo2_proofs::halo2curves::{bn256::{multi_miller_loop, G2Prepared, Gt}},
+    gates::{range::RangeInstructions, GateInstructions, RangeChip},
+    halo2_proofs::halo2curves::bn256::{multi_miller_loop, G2Prepared, Gt},
     utils::BigPrimeField,
     Context,
 };
@@ -60,12 +60,15 @@ fn bls_signature_test<F: BigPrimeField>(
     let signature_aggregated = signatures_g1;
 
     let g2_prepared = G2Prepared::from(-g2);
-    let actual_result =
-        multi_miller_loop(&[(&signature_aggregated, &g2_prepared), (&msghash, &pubkeys_g2_prepared)])
-            .final_exponentiation();
+    let actual_result = multi_miller_loop(&[
+        (&signature_aggregated, &g2_prepared),
+        (&msghash, &pubkeys_g2_prepared),
+    ])
+    .final_exponentiation();
 
     // Compare the 2 results
-    assert_eq!(*result.value(), F::from(actual_result == Gt::identity()))
+    assert_eq!(*result.value(), F::from(actual_result == Gt::identity()));
+    range.gate().assert_is_const(ctx, &result, &F::ONE);
 }
 
 #[test]
@@ -169,7 +172,6 @@ fn bench_bls_signature() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 // #[test]
 // fn bls_with_merkle_tree_test<F:BigPrimeField>(
 //         ctx: &mut Context<F>,
@@ -180,3 +182,81 @@ fn bench_bls_signature() -> Result<(), Box<dyn std::error::Error>> {
 //     pubkeys: &[G1Affine],
 //     msghash: G2Affine,
 // ){}
+
+fn regression_params() -> BlsSignatureCircuitParams {
+    BlsSignatureCircuitParams {
+        strategy: FpStrategy::Simple,
+        degree: 16,
+        num_advice: 0,
+        num_lookup_advice: 0,
+        num_fixed: 0,
+        lookup_bits: 15,
+        limb_bits: 90,
+        num_limbs: 3,
+        num_aggregation: 2,
+    }
+}
+
+#[test]
+fn benchmark_regression_bls_legacy_valid_alternate_witnesses() {
+    let params = regression_params();
+    for variant in [1, 2] {
+        let message = G1Affine::from(G1Affine::generator() * Fr::from(100 + variant));
+        let secrets = [Fr::from(11 + variant), Fr::from(19 + variant)];
+        let signatures = secrets.map(|sk| G1Affine::from(message * sk));
+        let pubkeys = secrets.map(|sk| G2Affine::from(G2Affine::generator() * sk));
+        base_test().k(params.degree).lookup_bits(params.lookup_bits).run(|ctx, range| {
+            bls_signature_test(
+                ctx,
+                range,
+                params,
+                G2Affine::generator(),
+                &signatures,
+                &pubkeys,
+                message,
+            );
+        });
+    }
+}
+
+#[test]
+fn benchmark_regression_bls_legacy_rejects_invalid_signature() {
+    let params = regression_params();
+    let message = G1Affine::from(G1Affine::generator() * Fr::from(101));
+    let signatures = [G1Affine::from(message * Fr::from(12))];
+    let pubkeys = [G2Affine::from(G2Affine::generator() * Fr::from(11))];
+    base_test().k(params.degree).lookup_bits(params.lookup_bits).expect_satisfied(false).run(
+        |ctx, range| {
+            bls_signature_test(
+                ctx,
+                range,
+                params,
+                G2Affine::generator(),
+                &signatures,
+                &pubkeys,
+                message,
+            );
+        },
+    );
+}
+
+#[test]
+fn benchmark_regression_bls_legacy_rejects_invalid_public_key() {
+    let params = regression_params();
+    let message = G1Affine::from(G1Affine::generator() * Fr::from(101));
+    let signatures = [G1Affine::from(message * Fr::from(11))];
+    let pubkeys = [G2Affine::from(G2Affine::generator() * Fr::from(12))];
+    base_test().k(params.degree).lookup_bits(params.lookup_bits).expect_satisfied(false).run(
+        |ctx, range| {
+            bls_signature_test(
+                ctx,
+                range,
+                params,
+                G2Affine::generator(),
+                &signatures,
+                &pubkeys,
+                message,
+            );
+        },
+    );
+}

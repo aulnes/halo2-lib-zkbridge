@@ -113,7 +113,7 @@ fn bench_merkle_path_select() -> Result<(), Box<dyn std::error::Error>> {
         File::open(config_path).unwrap_or_else(|e| panic!("{config_path} does not exist: {e:?}"));
     fs::create_dir_all("results/bn254").unwrap();
     
-    let results_path = "results/bn254/merkle_tree_bench.csv";
+    let results_path = "results/bn254/merkle_path_select_bench.csv";
     let mut fs_results = File::create(results_path).unwrap();
     writeln!(fs_results, "degree,num_advice,num_lookup_advice,num_fixed,lookup_bits,limb_bits,num_limbs,num_aggregation,num_origin,proof_time,proof_size,verify_time")?;
 

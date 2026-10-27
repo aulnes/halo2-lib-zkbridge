@@ -1,35 +1,101 @@
 #![allow(non_snake_case)]
 
-use super::bls_signature::BlsSignatureChip;
-use super:: Fp2Chip;
+use super::bls_signature::{AssignedG1, AssignedG2, BlsSignatureChip};
+use super::coordinate_tag::assigned_coordinate_tag;
+use super::Fp2Chip;
 use crate::bigint::ProperCrtUint;
-use crate::ecc::{EcPoint, EccChip};
-use crate::fields::vector::FieldVector;
-use crate::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
+use crate::ecc::EccChip;
+use crate::halo2_proofs::halo2curves::bn256::{Fr, G1Affine, G2Affine};
 use halo2_base::gates::flex_gate::threads::SinglePhaseCoreManager;
-use halo2_base::gates::{GateChip,GateInstructions};
+use halo2_base::gates::{GateChip, GateInstructions};
 use halo2_base::poseidon::hasher::PoseidonHasher;
 use halo2_base::utils::BigPrimeField;
 use halo2_base::{AssignedValue, Context};
 
-// To avoid issues with mutably borrowing twice (not allowed in Rust), we only store fp_chip and construct g2_chip and fp12_chip in scope when needed for temporary mutable borrows
+/// MSP arithmetic component, with the prototype's x-coordinate seed projection.
+/// This is not a full STMS verifier: see the prehashed BLS chip's preconditions.
 pub struct MspChip<'chip, F: BigPrimeField> {
     pub bls_signature_chip: &'chip BlsSignatureChip<'chip, F>,
     pub poseidon_chip: &'chip PoseidonHasher<F, 3, 2>,
-    // pub fp_chip: &'chip FpChip<'chip, F>,
+}
+
+impl<'chip> MspChip<'chip, Fr> {
+    /// Digest-input MSP: derive the shared message point inside the circuit.
+    ///
+    /// `root` and `message_digest` are native field elements, as at the input
+    /// boundary of Mithril's inner Certificate circuit. The enclosing circuit
+    /// must expose these SAME cells as public instances. Raw-message SHA-256,
+    /// registry membership, threshold authentication and quorum are separate
+    /// relations; this method does not turn MSP into a complete certificate.
+    ///
+    /// Assigned points retain the prehashed API's valid, nonidentity, subgroup
+    /// input preconditions. The derived message itself is cofactor-cleared.
+    /// The caller must constrain the returned acceptance bit to one.
+    pub fn msp_verify_msm_digest_assigned(
+        &self,
+        pool: &mut SinglePhaseCoreManager<Fr>,
+        root: AssignedValue<Fr>,
+        message_digest: AssignedValue<Fr>,
+        signatures: &[AssignedG2<Fr>],
+        pubkeys: &[AssignedG1<Fr>],
+        weighting_seed: AssignedValue<Fr>,
+        ivk: &AssignedG1<Fr>,
+        isig: &AssignedG2<Fr>,
+    ) -> AssignedValue<Fr> {
+        let ctx = pool.main();
+        let message = super::message_hash::MessageHashChip::new(
+            self.bls_signature_chip.fp_chip,
+            self.poseidon_chip,
+        )
+        .hash_assigned(ctx, root, message_digest);
+        let generator = EccChip::new(self.bls_signature_chip.fp_chip)
+            .assign_constant_point(ctx, G1Affine::generator());
+        self.msp_verify_msm_assigned(
+            pool,
+            &generator,
+            signatures,
+            pubkeys,
+            &message,
+            weighting_seed,
+            ivk,
+            isig,
+        )
+    }
 }
 
 impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
     pub fn new(
         bls_signature_chip: &'chip BlsSignatureChip<F>,
         poseidon_chip: &'chip PoseidonHasher<F, 3, 2>,
-        // fp_chip: &'chip FpChip<F>,
     ) -> Self {
-        Self {
-            bls_signature_chip,
-            poseidon_chip,
-            // fp_chip,
-        }
+        Self { bls_signature_chip, poseidon_chip }
+    }
+
+    /// Hash canonical assigned x (or x.c0) coordinates, reduced into F through
+    /// their constrained CRT native cells, using the same coordinate-tag
+    /// convention as eligibility. All projections reuse assigned cells.
+    /// It is not an injective encoding of an entire curve point.
+    fn weights(
+        &self,
+        ctx: &mut Context<F>,
+        coordinates: impl IntoIterator<Item = ProperCrtUint<F>>,
+        weighting_seed: AssignedValue<F>,
+    ) -> (Vec<Vec<AssignedValue<F>>>, AssignedValue<F>) {
+        let coordinates = coordinates
+            .into_iter()
+            .map(|x| assigned_coordinate_tag(ctx, self.bls_signature_chip.fp_chip, &x))
+            .collect::<Vec<_>>();
+        let gate = GateChip::default();
+        let seed = self.poseidon_chip.hash_fix_len_array(ctx, &gate, &coordinates);
+        let seed_ok = gate.is_equal(ctx, weighting_seed, seed);
+        let weights = (0..coordinates.len())
+            .map(|i| {
+                // The index is part of the fixed circuit shape, not a free witness.
+                let index = ctx.load_constant(F::from(i as u64));
+                vec![self.poseidon_chip.hash_fix_len_array(ctx, &gate, &[index, weighting_seed])]
+            })
+            .collect();
+        (weights, seed_ok)
     }
 
     pub fn msp_verify(
@@ -37,301 +103,228 @@ impl<'chip, F: BigPrimeField> MspChip<'chip, F> {
         ctx: &mut Context<F>,
         g1: G1Affine,
         signatures: &[G2Affine],
-        pubkeys: &[G1Affine], // mvk
+        pubkeys: &[G1Affine],
         msghash: G2Affine,
-        weighting_seed : F,
+        weighting_seed: F,
         ivk: G1Affine,
-        isig: G2Affine, // \mu
+        isig: G2Affine,
     ) -> AssignedValue<F> {
-        // TODO: verify proof of possesion
+        let generator =
+            EccChip::new(self.bls_signature_chip.fp_chip).assign_constant_point(ctx, g1);
+        let pairing = self.bls_signature_chip.pairing_chip;
+        let signatures =
+            signatures.iter().map(|p| pairing.load_private_g2(ctx, *p)).collect::<Vec<_>>();
+        let pubkeys = pubkeys.iter().map(|p| pairing.load_private_g1(ctx, *p)).collect::<Vec<_>>();
+        let message = pairing.load_private_g2(ctx, msghash);
+        let seed = ctx.load_witness(weighting_seed);
+        let ivk = pairing.load_private_g1(ctx, ivk);
+        let isig = pairing.load_private_g2(ctx, isig);
+        self.msp_verify_assigned(
+            ctx,
+            &generator,
+            &signatures,
+            &pubkeys,
+            &message,
+            seed,
+            &ivk,
+            &isig,
+        )
+    }
 
-        // A: verify BLS signature
-        let verify_A = self.bls_signature_chip.bls_signature_verify(ctx, g1, signatures, pubkeys, msghash);
-
-
-        // B
-        let signatures_x_assigned = signatures.iter().map(|pt| {
-            ctx.load_witness(F::from_bytes_le(&pt.x.c0.to_bytes()))
-        }).collect::<Vec<_>>();
-        let gate_chip = GateChip::<F>::default();
-        let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
-        let weighting_seed_assigned = ctx.load_witness(weighting_seed);
-        // B_1 : verify weighting seed
-        let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
-        // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
-        let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
-            let i_assigned = ctx.load_witness(F::from(i as u64));
-            self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned])
-        }).collect::<Vec<_>>();
-
+    /// All checks share the same assigned points. The caller must constrain the
+    /// returned bit to one and bind the input cells to its statement.
+    pub fn msp_verify_assigned(
+        &self,
+        ctx: &mut Context<F>,
+        g1: &AssignedG1<F>,
+        signatures: &[AssignedG2<F>],
+        pubkeys: &[AssignedG1<F>],
+        msghash: &AssignedG2<F>,
+        weighting_seed: AssignedValue<F>,
+        ivk: &AssignedG1<F>,
+        isig: &AssignedG2<F>,
+    ) -> AssignedValue<F> {
+        let verify_a = self
+            .bls_signature_chip
+            .bls_signature_verify_assigned(ctx, g1, signatures, pubkeys, msghash);
+        let (weights, seed_ok) =
+            self.weights(ctx, signatures.iter().map(|p| p.x[0].clone()), weighting_seed);
         let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
         let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
         let g2_chip = EccChip::new(&fp2_chip);
-        // B_2 : verify ivk, isig
-        // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
-        let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
-        let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
-        let products = mvks.iter().zip(e_is.iter()).map(|(mvk, &e_i)| {
-            let e_vec = vec![e_i];
-            g1_chip.scalar_mult::<G1Affine>(ctx, mvk.clone(), e_vec,254,4)
-        }).collect::<Vec<_>>();
-
-        //println!("ivk_assigned x:{:?}", ivk_assigned.clone().x());
-        //println!("ivk_assigned y:{:?}", ivk_assigned.clone().y());
-        
-        let ivk_comp = g1_chip.sum::<G1Affine>(ctx, products);
-        
-        //println!("ivk_comp x:{:?}", ivk_comp.clone().x());
-        //println!("ivk_comp y:{:?}", ivk_comp.clone().y());
-        let verify_B_2 = g1_chip.is_equal(ctx, ivk_assigned, ivk_comp);
-        
-        
-
-
-        // isig = \sum_{i=0}^{n-1} e_i * sig_i
-        let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
-        let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
-        let products = sigs.iter().zip(e_is.iter()).map(|(sig, &e_i)| {
-            let e_vec = vec![e_i];
-            g2_chip.scalar_mult::<G2Affine>(ctx, sig.clone(), e_vec,254,4)
-        }).collect::<Vec<_>>();
-        let isig_comp = g2_chip.sum::<G2Affine>(ctx, products);
-
-        //println!("{:?}",isig_assigned);
-        //println!("{:?}",isig_comp);
-
-
-        let verify_B_3 = g2_chip.is_equal(ctx, isig_assigned, isig_comp);
-        
-
-        // B_4 : verify e(g1, isig) = e(ivk, H(m))
-        let verify_B_4 = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
-
-        //let verify_B_5 = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig_comp],&[ivk_comp], msghash);
-
-
-        //println!("verify_A: {:?}", verify_A);
-        //println!("verify_B_1: {:?}", verify_B_1);
-        println!("verify_B_2: {:?}", verify_B_2);
-        println!("verify_B_3: {:?}", verify_B_3);
-        println!("verify_B_4: {:?}", verify_B_4);
-        // Final result
-        // let result1 = gate_chip.and(ctx, verify_A, verify_B_1);
-        // println!("result1: {:?}", result1);
-        // let result2 = gate_chip.and(ctx, verify_B_2, verify_B_3);
-        // println!("result2: {:?}", result2);
-        // let result = gate_chip.and(ctx, result1, result2);
-        // println!("result: {:?}", result);
-        // let result = gate_chip.and(ctx, result, verify_B_4);
-        // println!("result: {:?}", result);
-    
-        let result1 = gate_chip.and(ctx, verify_A, verify_B_1);
-        let result2 = gate_chip.and(ctx, verify_B_2, verify_B_3);
-        let result = gate_chip.and(ctx, result1, result2);
-        let result = gate_chip.and(ctx, result, verify_B_4);
-        result
+        let products = pubkeys
+            .iter()
+            .zip(&weights)
+            .map(|(p, e)| g1_chip.scalar_mult::<G1Affine>(ctx, p.clone(), e.clone(), 254, 4))
+            .collect::<Vec<_>>();
+        let computed_ivk = g1_chip.sum::<G1Affine>(ctx, products);
+        let key_ok = g1_chip.is_equal(ctx, ivk.clone(), computed_ivk);
+        let products = signatures
+            .iter()
+            .zip(&weights)
+            .map(|(p, e)| g2_chip.scalar_mult::<G2Affine>(ctx, p.clone(), e.clone(), 254, 4))
+            .collect::<Vec<_>>();
+        let computed_isig = g2_chip.sum::<G2Affine>(ctx, products);
+        let sig_ok = g2_chip.is_equal(ctx, isig.clone(), computed_isig);
+        let verify_b = self.bls_signature_chip.bls_signature_verify_assigned(
+            ctx,
+            g1,
+            std::slice::from_ref(isig),
+            std::slice::from_ref(ivk),
+            msghash,
+        );
+        self.combine(ctx, [verify_a, seed_ok, key_ok, sig_ok, verify_b])
     }
-
 
     pub fn msp_verify_2(
         &self,
         ctx: &mut Context<F>,
         g2: G2Affine,
         signatures: &[G1Affine],
-        pubkeys: &[G2Affine], // mvk
+        pubkeys: &[G2Affine],
         msghash: G1Affine,
-        weighting_seed : F,
+        weighting_seed: F,
         ivk: G2Affine,
-        isig: G1Affine, // \mu
+        isig: G1Affine,
     ) -> AssignedValue<F> {
-        // A : verify BLS signature
-        let verify_A = self.bls_signature_chip.bls_signature_verify_2(ctx, g2, signatures, pubkeys, msghash);
+        let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
+        let generator = EccChip::new(&fp2_chip).assign_constant_point(ctx, g2);
+        let pairing = self.bls_signature_chip.pairing_chip;
+        let signatures =
+            signatures.iter().map(|p| pairing.load_private_g1(ctx, *p)).collect::<Vec<_>>();
+        let pubkeys = pubkeys.iter().map(|p| pairing.load_private_g2(ctx, *p)).collect::<Vec<_>>();
+        let message = pairing.load_private_g1(ctx, msghash);
+        let seed = ctx.load_witness(weighting_seed);
+        let ivk = pairing.load_private_g2(ctx, ivk);
+        let isig = pairing.load_private_g1(ctx, isig);
+        self.msp_verify_2_assigned(
+            ctx,
+            &generator,
+            &signatures,
+            &pubkeys,
+            &message,
+            seed,
+            &ivk,
+            &isig,
+        )
+    }
 
-        // B
-        let signatures_x_assigned = signatures.iter().map(|pt| {
-            ctx.load_witness(F::from_bytes_le(&pt.x.to_bytes()))
-        }).collect::<Vec<_>>();
-        let gate_chip = GateChip::<F>::default();
-        let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
-        let weighting_seed_assigned = ctx.load_witness(weighting_seed);
-        // B_1 : verify weighting seed
-        let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
-        // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
-        let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
-            let i_assigned = ctx.load_witness(F::from(i as u64));
-            self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned])
-        }).collect::<Vec<_>>();
-
+    pub fn msp_verify_2_assigned(
+        &self,
+        ctx: &mut Context<F>,
+        g2: &AssignedG2<F>,
+        signatures: &[AssignedG1<F>],
+        pubkeys: &[AssignedG2<F>],
+        msghash: &AssignedG1<F>,
+        weighting_seed: AssignedValue<F>,
+        ivk: &AssignedG2<F>,
+        isig: &AssignedG1<F>,
+    ) -> AssignedValue<F> {
+        let verify_a = self
+            .bls_signature_chip
+            .bls_signature_verify_2_assigned(ctx, g2, signatures, pubkeys, msghash);
+        let (weights, seed_ok) =
+            self.weights(ctx, signatures.iter().map(|p| p.x.clone()), weighting_seed);
         let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
         let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
         let g2_chip = EccChip::new(&fp2_chip);
-        // B_2 : verify ivk, isig
-        // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
-        let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, ivk);
-        let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
-        let products = mvks.iter().zip(e_is.iter()).map(|(mvk, &e_i)| {
-            let e_vec = vec![e_i];
-            g2_chip.scalar_mult::<G2Affine>(ctx, mvk.clone(), e_vec,254,4)
-        }).collect::<Vec<_>>();
-        let ivk_comp = g2_chip.sum::<G2Affine>(ctx, products);
-        let verify_B_2 = g2_chip.is_equal(ctx, ivk_assigned, ivk_comp);
-
-        // isig = \sum_{i=0}^{n-1} e_i * sig_i
-        let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, isig);
-        let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
-        let products = sigs.iter().zip(e_is.iter()).map(|(sig, &e_i)| {
-            let e_vec = vec![e_i];
-            g1_chip.scalar_mult::<G1Affine>(ctx, sig.clone(), e_vec,254,4)
-        }).collect::<Vec<_>>();
-        let isig_comp = g1_chip.sum::<G1Affine>(ctx, products);
-        let verify_B_3 = g1_chip.is_equal(ctx, isig_assigned, isig_comp);
-
-        // B_4 : verify e(isig, g2) = e(ivk, H(m))
-        let verify_B_4 = self.bls_signature_chip.bls_signature_verify_2(ctx, g2, &[isig], &[ivk], msghash);
-
-        // Final result
-        let result1 = gate_chip.and(ctx, verify_A, verify_B_1);
-        let result2 = gate_chip.and(ctx, verify_B_2, verify_B_3);
-        let result = gate_chip.and(ctx, result1, result2);
-        let result = gate_chip.and(ctx, result, verify_B_4);
-        result
-
-
+        let products = pubkeys
+            .iter()
+            .zip(&weights)
+            .map(|(p, e)| g2_chip.scalar_mult::<G2Affine>(ctx, p.clone(), e.clone(), 254, 4))
+            .collect::<Vec<_>>();
+        let computed_ivk = g2_chip.sum::<G2Affine>(ctx, products);
+        let key_ok = g2_chip.is_equal(ctx, ivk.clone(), computed_ivk);
+        let products = signatures
+            .iter()
+            .zip(&weights)
+            .map(|(p, e)| g1_chip.scalar_mult::<G1Affine>(ctx, p.clone(), e.clone(), 254, 4))
+            .collect::<Vec<_>>();
+        let computed_isig = g1_chip.sum::<G1Affine>(ctx, products);
+        let sig_ok = g1_chip.is_equal(ctx, isig.clone(), computed_isig);
+        let verify_b = self.bls_signature_chip.bls_signature_verify_2_assigned(
+            ctx,
+            g2,
+            std::slice::from_ref(isig),
+            std::slice::from_ref(ivk),
+            msghash,
+        );
+        self.combine(ctx, [verify_a, seed_ok, key_ok, sig_ok, verify_b])
     }
-
-
-    pub fn msp_verify_msm_helper(
-        &self,
-        pool: &mut SinglePhaseCoreManager<F>,
-        g1: G1Affine,
-        signatures: &[G2Affine],
-        pubkeys: &[G1Affine], // mvk
-        msghash: G2Affine,
-        weighting_seed : F,
-        ivk: G1Affine,
-        isig: G2Affine,
-    ) -> (
-        Vec<EcPoint<F, ProperCrtUint<F>>>, 
-        Vec<EcPoint<F, FieldVector<ProperCrtUint<F>>>>, 
-        Vec<Vec<AssignedValue<F>>>,
-        AssignedValue<F>,
-    ) {
-
-        let ctx = pool.main();
-        // B
-        let signatures_x_assigned = signatures.iter().map(|pt| {
-            ctx.load_witness(F::from_bytes_le(&pt.x.c0.to_bytes()))
-        }).collect::<Vec<_>>();
-        let gate_chip = GateChip::<F>::default();
-        let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
-        let weighting_seed_assigned = ctx.load_witness(weighting_seed);
-        // B_1 : verify weighting seed
-        let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
-        assert_eq!(*verify_B_1.value(),F::ONE);
-        // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
-        let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
-            let i_assigned = ctx.load_witness(F::from(i as u64));
-            let e_i = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned]);
-            vec![e_i]
-        }).collect::<Vec<_>>();
-
-        // let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
-        // let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
-        // let g2_chip = EccChip::new(&fp2_chip);
-        // B_2 : verify ivk, isig
-        // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
-        // let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
-        let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
-        // let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
-        let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
-        
-        let verify = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
-    
-        (mvks,sigs,e_is,verify)
-    
-    }
-
 
     pub fn msp_verify_msm(
         &self,
         pool: &mut SinglePhaseCoreManager<F>,
         g1: G1Affine,
         signatures: &[G2Affine],
-        pubkeys: &[G1Affine], // mvk
+        pubkeys: &[G1Affine],
         msghash: G2Affine,
-        weighting_seed : F,
+        weighting_seed: F,
         ivk: G1Affine,
-        isig: G2Affine, // \mu
+        isig: G2Affine,
     ) -> AssignedValue<F> {
-        // TODO: verify proof of possesion
+        let ctx = pool.main();
+        let generator =
+            EccChip::new(self.bls_signature_chip.fp_chip).assign_constant_point(ctx, g1);
+        let pairing = self.bls_signature_chip.pairing_chip;
+        let signatures =
+            signatures.iter().map(|p| pairing.load_private_g2(ctx, *p)).collect::<Vec<_>>();
+        let pubkeys = pubkeys.iter().map(|p| pairing.load_private_g1(ctx, *p)).collect::<Vec<_>>();
+        let message = pairing.load_private_g2(ctx, msghash);
+        let seed = ctx.load_witness(weighting_seed);
+        let ivk = pairing.load_private_g1(ctx, ivk);
+        let isig = pairing.load_private_g2(ctx, isig);
+        self.msp_verify_msm_assigned(
+            pool,
+            &generator,
+            &signatures,
+            &pubkeys,
+            &message,
+            seed,
+            &ivk,
+            &isig,
+        )
+    }
 
-        // A: verify BLS signature
-        // let verify_A = self.bls_signature_chip.bls_signature_verify(ctx, g1, signatures, pubkeys, msghash);
-
-        // let ctx = pool.main();
-
-        // // B
-        // let signatures_x_assigned = signatures.iter().map(|pt| {
-        //     ctx.load_witness(F::from_bytes_le(&pt.x.c0.to_bytes()))
-        // }).collect::<Vec<_>>();
-        // let gate_chip = GateChip::<F>::default();
-        // let weighting_seed_comp = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &signatures_x_assigned[..]);
-        // let weighting_seed_assigned = ctx.load_witness(weighting_seed);
-        // // B_1 : verify weighting seed
-        // let verify_B_1 = gate_chip.is_equal(ctx, weighting_seed_assigned, weighting_seed_comp);
-        // // e_i = H(i,weighting_seed) for i in 0..n where n is the number of public keys
-        // let e_is  = pubkeys.iter().enumerate().map(|(i, _)| {
-        //     let i_assigned = ctx.load_witness(F::from(i as u64));
-        //     let e_i = self.poseidon_chip.hash_fix_len_array(ctx, &gate_chip, &[i_assigned, weighting_seed_assigned]);
-        //     vec![e_i]
-        // }).collect::<Vec<_>>();
-
-        // let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
-        // let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
-        // let g2_chip = EccChip::new(&fp2_chip);
-        // // B_2 : verify ivk, isig
-        // // ivk = \sum_{i=0}^{n-1} e_i * mvk_i
-        // let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(ctx, ivk);
-        // let mvks = pubkeys.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g1(ctx, *pt)).collect::<Vec<_>>();
-        // let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(ctx, isig);
-        // let sigs = signatures.iter().map(|pt| self.bls_signature_chip.pairing_chip.load_private_g2(ctx, *pt)).collect::<Vec<_>>();
-        
-        // let verify = self.bls_signature_chip.bls_signature_verify(ctx, g1, &[isig], &[ivk], msghash);
-        
-        let (mvks,sigs,e_is,verify) = self.msp_verify_msm_helper(pool, g1, signatures, pubkeys, msghash, weighting_seed, ivk, isig);
-
+    pub fn msp_verify_msm_assigned(
+        &self,
+        pool: &mut SinglePhaseCoreManager<F>,
+        g1: &AssignedG1<F>,
+        signatures: &[AssignedG2<F>],
+        pubkeys: &[AssignedG1<F>],
+        msghash: &AssignedG2<F>,
+        weighting_seed: AssignedValue<F>,
+        ivk: &AssignedG1<F>,
+        isig: &AssignedG2<F>,
+    ) -> AssignedValue<F> {
+        let ctx = pool.main();
+        let verify_a = self
+            .bls_signature_chip
+            .bls_signature_verify_assigned(ctx, g1, signatures, pubkeys, msghash);
+        let (weights, seed_ok) =
+            self.weights(ctx, signatures.iter().map(|p| p.x[0].clone()), weighting_seed);
+        let verify_b = self.bls_signature_chip.bls_signature_verify_assigned(
+            ctx,
+            g1,
+            std::slice::from_ref(isig),
+            std::slice::from_ref(ivk),
+            msghash,
+        );
         let g1_chip = EccChip::new(self.bls_signature_chip.fp_chip);
         let fp2_chip = Fp2Chip::new(self.bls_signature_chip.fp_chip);
         let g2_chip = EccChip::new(&fp2_chip);
+        let computed_ivk =
+            g1_chip.variable_base_msm_custom::<G1Affine>(pool, pubkeys, weights.clone(), 254, 4);
+        let computed_isig =
+            g2_chip.variable_base_msm_custom::<G2Affine>(pool, signatures, weights, 254, 4);
+        let ctx = pool.main();
+        let key_ok = g1_chip.is_equal(ctx, ivk.clone(), computed_ivk);
+        let sig_ok = g2_chip.is_equal(ctx, isig.clone(), computed_isig);
+        self.combine(ctx, [verify_a, seed_ok, key_ok, sig_ok, verify_b])
+    }
 
-        let msm_g1 = g1_chip.variable_base_msm_custom::<G1Affine>(
-            pool,
-            &mvks,
-            e_is.clone(),
-            254,
-            4,
-        );
-        
-        
-        let msm_g2 = g2_chip.variable_base_msm_custom::<G2Affine>(
-            pool,
-            &sigs,
-            e_is,
-            254,
-            4,
-        );
-
-        let ivk_assigned = self.bls_signature_chip.pairing_chip.load_private_g1(pool.main(), ivk);
-        let isig_assigned = self.bls_signature_chip.pairing_chip.load_private_g2(pool.main(), isig);
-
-        // check equal
-        let verify_ivk = g1_chip.is_equal(pool.main(), ivk_assigned, msm_g1);
-        let verify_isig = g2_chip.is_equal(pool.main(), isig_assigned, msm_g2);
-
-        assert_eq!(*verify_ivk.value(),F::ONE);
-        assert_eq!(*verify_isig.value(),F::ONE);
-
-        
-        verify
+    fn combine(&self, ctx: &mut Context<F>, checks: [AssignedValue<F>; 5]) -> AssignedValue<F> {
+        let gate = GateChip::default();
+        checks.into_iter().reduce(|a, b| gate.and(ctx, a, b)).unwrap()
     }
 }

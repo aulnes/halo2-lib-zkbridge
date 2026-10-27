@@ -27,7 +27,7 @@ halo2-base = { version = "=0.4.1", path = "../halo2-base", default-features = fa
 # plotting circuit layout
 plotters = { version = "0.3.0", optional = true }
 hex = "0.4.3"
-poseidon = {git = "https://github.com/scroll-tech/poseidon"}
+poseidon = { git = "https://github.com/scroll-tech/poseidon", rev = "5787dd3d2ce7a9e9601a035c396ac0c03449b54d" }
 
 [dev-dependencies]
 ark-std = { version = "0.3.0", features = ["print-trace"] }

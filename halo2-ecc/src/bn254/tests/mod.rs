@@ -33,6 +33,9 @@ pub mod merkle_path_select;
 pub mod eligibility_check;
 pub mod merkle_root;
 pub mod index_check;
+pub mod message_alignment;
+pub mod certificate;
+pub mod certificate_bench;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct MSMCircuitParams {

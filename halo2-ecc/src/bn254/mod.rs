@@ -16,8 +16,14 @@ pub mod shuffle2;
 pub mod merkle_path_select;
 pub mod compare;
 pub mod eligibility_check;
+pub mod coordinate_tag;
+pub mod complete_g2;
+pub mod message_hash;
+pub mod point_encoding;
+pub mod certificate;
 pub mod merkle_root;
 pub mod index_check;
+pub(crate) mod native_integer;
 pub mod atms_prod;
 
 #[derive(Clone)]
